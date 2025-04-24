@@ -45,12 +45,23 @@ func (cf *DockerFactory) Create(image string, opts *ContainerOptions) (Container
 		contResources.CPUQuota = (int64)(50000.0 * opts.CPUQuota)
 	}
 
+	// Add volume bindings if specified
+	var volumeBinds []string
+	if opts.Volumes != nil {
+		for hostPath, containerPath := range opts.Volumes {
+			volumeBinds = append(volumeBinds, fmt.Sprintf("%s:%s", hostPath, containerPath))
+		}
+	}
+
 	resp, err := cf.cli.ContainerCreate(cf.ctx, &container.Config{
 		Image: image,
 		Cmd:   opts.Cmd,
 		Env:   opts.Env,
 		Tty:   false,
-	}, &container.HostConfig{Resources: contResources}, nil, nil, "")
+	}, &container.HostConfig{
+		Resources: contResources,
+		Binds:     volumeBinds, // Add volume bindings here
+	}, nil, nil, "")
 
 	if err != nil {
 		log.Printf("Could not create the container: %v\n", err)

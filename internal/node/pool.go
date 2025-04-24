@@ -220,6 +220,9 @@ func NewContainerWithAcquiredResources(fun *function.Function) (container.Contai
 	contID, err := container.NewContainer(image, fun.TarFunctionCode, &container.ContainerOptions{
 		MemoryMB: fun.MemoryMB,
 		CPUQuota: fun.CPUDemand,
+		Volumes: map[string]string{
+			"/mnt/ramdisk": "/mnt/ramdisk",
+		},
 	})
 
 	if err != nil {

@@ -520,7 +520,7 @@ func createWorkflow(cmd *cobra.Command, args []string) {
 		os.Exit(3)
 	}
 
-	url := fmt.Sprintf("http://%s:%d/workflow/createASL", ServerConfig.Host, ServerConfig.Port)
+	url := fmt.Sprintf("http://%s:%d/workflow/create", ServerConfig.Host, ServerConfig.Port)
 	resp, err := utils.PostJson(url, requestBody)
 	if err != nil {
 		// TODO: check returned error code
