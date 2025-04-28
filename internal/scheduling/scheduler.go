@@ -75,6 +75,8 @@ func Run(p Policy) {
 
 // SubmitRequest submits a newly arrived request for scheduling and execution
 func SubmitRequest(r *function.Request) (function.ExecutionReport, error) {
+	metrics.UpdateWorkload(r.Fun.Name)
+
 	schedRequest := scheduledRequest{
 		Request:         r,
 		decisionChannel: make(chan schedDecision, 1)}

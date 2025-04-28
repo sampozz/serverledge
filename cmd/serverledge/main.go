@@ -59,6 +59,7 @@ func main() {
 	node.NodeIdentifier = myKey
 
 	go metrics.Init()
+	startCPUMonitoring()
 
 	if config.GetBool(config.TRACING_ENABLED, false) {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -96,4 +97,17 @@ func main() {
 
 	api.StartAPIServer(e)
 
+}
+
+func startCPUMonitoring() {
+	// Update CPU utilization every 5 seconds
+	ticker := time.NewTicker(5 * time.Second)
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				metrics.UpdateCPUUtilization()
+			}
+		}
+	}()
 }

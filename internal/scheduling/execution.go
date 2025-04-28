@@ -8,6 +8,7 @@ import (
 	"github.com/serverledge-faas/serverledge/internal/container"
 	"github.com/serverledge-faas/serverledge/internal/executor"
 	"github.com/serverledge-faas/serverledge/internal/function"
+	"github.com/serverledge-faas/serverledge/internal/metrics"
 )
 
 const HANDLER_DIR = "/app"
@@ -63,6 +64,8 @@ func Execute(contID container.ContainerID, r *scheduledRequest, isWarm bool) (fu
 		IsWarmStart:  isWarm,
 		Duration:     time.Now().Sub(t0).Seconds() - invocationWait.Seconds(),
 		ResponseTime: time.Now().Sub(r.Arrival).Seconds()}
+
+	metrics.SetPressure(r.Fun.Name, time.Now().Sub(r.Arrival).Seconds())
 
 	// initializing containers may require invocation retries, adding
 	// latency

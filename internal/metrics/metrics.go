@@ -4,6 +4,8 @@ import (
 	"log"
 	"net/http"
 	"runtime"
+	"sync"
+	"time"
 
 	"github.com/serverledge-faas/serverledge/internal/config"
 	"github.com/serverledge-faas/serverledge/internal/node"
@@ -28,8 +30,7 @@ var (
 		Name:    "sedge_exectime",
 		Help:    "Function duration",
 		Buckets: durationBuckets,
-	},
-		[]string{"node", "function"})
+	}, []string{"node", "function"})
 
 	// New metrics
 	Pressure = promauto.NewGaugeVec(prometheus.GaugeOpts{
@@ -54,6 +55,15 @@ var (
 )
 
 var durationBuckets = []float64{0.002, 0.005, 0.010, 0.02, 0.03, 0.05, 0.1, 0.15, 0.3, 0.6, 1.0}
+
+// Add these package-level variables
+var (
+	currentCounts  = make(map[string]int)
+	previousCounts = make(map[string]int)
+	windowStart    = time.Now()
+	workloadMutex  = &sync.Mutex{}
+	windowDuration = 1 * time.Second
+)
 
 func Init() {
 	if config.GetBool(config.METRICS_ENABLED, false) {
@@ -93,7 +103,8 @@ func AddFunctionDurationValue(funcName string, duration float64) {
 }
 
 // New functions for the requested metrics
-func SetPressure(funcName string, responseTime, threshold float64) {
+func SetPressure(funcName string, responseTime float64) {
+	threshold := 1.0
 	if !Enabled || threshold == 0 {
 		return
 	}
@@ -101,11 +112,46 @@ func SetPressure(funcName string, responseTime, threshold float64) {
 	Pressure.With(prometheus.Labels{"function": funcName, "node": nodeIdentifier}).Set(pressure)
 }
 
-func SetWorkload(funcName string, requestsPerSecond float64) {
+func UpdateWorkload(funcName string) {
 	if !Enabled {
 		return
 	}
-	Workload.With(prometheus.Labels{"function": funcName, "node": nodeIdentifier}).Set(requestsPerSecond)
+
+	workloadMutex.Lock()
+	defer workloadMutex.Unlock()
+
+	key := funcName + ":" + nodeIdentifier
+	now := time.Now()
+
+	// Check if we need to rotate windows
+	if now.Sub(windowStart) >= windowDuration {
+		// Move current counts to previous
+		previousCounts = currentCounts
+		// Reset current counts
+		currentCounts = make(map[string]int)
+		// Update window start time
+		windowStart = now
+	}
+
+	// Increment request count for this function
+	currentCounts[key]++
+
+	// Calculate requests per second based on the previous completed window
+	// (or current window if there's no previous data)
+	var rps float64
+	if count, ok := previousCounts[key]; ok {
+		rps = float64(count) / windowDuration.Seconds()
+	} else if count, ok := currentCounts[key]; ok {
+		// If we don't have previous data, use current data with elapsed time
+		elapsed := now.Sub(windowStart).Seconds()
+		if elapsed > 0 {
+			rps = float64(count) / elapsed
+		} else {
+			rps = float64(count) // Avoid division by zero
+		}
+	}
+
+	Workload.With(prometheus.Labels{"function": funcName, "node": nodeIdentifier}).Set(rps)
 }
 
 func SetQueueLength(funcName string, length float64) {

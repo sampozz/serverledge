@@ -2,8 +2,10 @@ package scheduling
 
 import (
 	"errors"
-	"github.com/serverledge-faas/serverledge/internal/function"
 	"log"
+
+	"github.com/serverledge-faas/serverledge/internal/function"
+	"github.com/serverledge-faas/serverledge/internal/metrics"
 
 	"github.com/serverledge-faas/serverledge/internal/config"
 	"github.com/serverledge-faas/serverledge/internal/node"
@@ -31,6 +33,12 @@ func (p *DefaultLocalPolicy) OnCompletion(_ *function.Function, _ *function.Exec
 
 	p.queue.Lock()
 	defer p.queue.Unlock()
+
+	// After queue operations
+	if p.queue != nil {
+		metrics.SetQueueLength("All", float64(p.queue.Len()))
+	}
+
 	if p.queue.Len() == 0 {
 		return
 	}
@@ -96,6 +104,7 @@ func (p *DefaultLocalPolicy) OnArrival(r *scheduledRequest) {
 	if p.queue != nil {
 		p.queue.Lock()
 		defer p.queue.Unlock()
+		metrics.SetQueueLength("All", float64(p.queue.Len()))
 		if p.queue.Enqueue(r) {
 			log.Printf("[%s] Added to queue (length=%d)\n", r, p.queue.Len())
 			return
