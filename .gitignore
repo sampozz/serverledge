@@ -5,3 +5,5 @@ __pycache__*
 images/*/executor
 *.backup
 default.etcd
+*.pbmm
+*.scorer

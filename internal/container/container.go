@@ -54,6 +54,8 @@ func Execute(contID ContainerID, req *executor.InvocationRequest) (*executor.Inv
 	postBodyB := bytes.NewBuffer(postBody) // this buffer will be erased after send
 	resp, waitDuration, err := sendPostRequestWithRetries(fmt.Sprintf("http://%s:%d/invoke", ipAddr,
 		executor.DEFAULT_EXECUTOR_PORT), postBodyB)
+
+	log.Printf("Response: %v, Wait Duration: %v, Error: %v\n", resp, waitDuration, err)
 	if err != nil {
 		if resp != nil {
 			buffer, err2 := io.ReadAll(resp.Body)
