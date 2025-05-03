@@ -11,8 +11,8 @@ def execute_command(command):
     subprocess.run(command.split())
 
 
-def ffmpeg_2(orig_input, i):
-    output_dir = "/mnt/ramdisk/"
+def ffmpeg_2(orig_input, i, folder):
+    output_dir = folder
     output_name = f"video_ffmpeg_2_output_{str(i)}"
     orig_output = os.path.join(output_dir, output_name)
 
@@ -43,10 +43,13 @@ def ffmpeg_2(orig_input, i):
     execute_command("rm " + output_audio_name)
     execute_command("rm " + output_clip_name)
 
+    execute_command("rm " + temp_audio_path)
+    execute_command("rm " + orig_input)
+
 
 def handler(params, context):
-    folder = "/mnt/ramdisk/"
-    input_file = f"{folder}video_ffmpeg_1_output.tar.gz"
+    folder = f"/mnt/ramdisk/{params['dir']}"
+    input_file = f"{folder}/video_ffmpeg_1_output.tar.gz"
 
     # extract the input file
     os.chdir(folder)
@@ -61,8 +64,8 @@ def handler(params, context):
 
     for file in input_files:
         i = file.split("_")[-1].split(".")[0]
-        ffmpeg_2(file, i)
+        ffmpeg_2(file, i, folder)
 
     
-    return "video.mp4"
+    return params
 

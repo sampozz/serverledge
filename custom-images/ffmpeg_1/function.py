@@ -13,13 +13,12 @@ def execute_command(command):
 
 def handler(params, context):
     try:
-        params['input'] = 'video.mp4'
+        input_dir = f"/mnt/ramdisk/{params['dir']}"
 
-        input_file = params['input']
+        input_file = 'video.mp4'
         input_name = input_file.split('.')[0]
-        input_path = f"/mnt/ramdisk/{input_name}_librosa_output.tar.gz"
-        input_dir = '/mnt/ramdisk/'
-        output_path = f"/mnt/ramdisk/{input_name}_ffmpeg_1_output"
+        input_path = f"{input_dir}/{input_name}_librosa_output.tar.gz"
+        output_path = f"{input_dir}/{input_name}_ffmpeg_1_output"
 
         command = "tar -xvzf %s -C %s" % (input_path, input_dir)
         execute_command(command)
@@ -51,9 +50,12 @@ def handler(params, context):
             clip_path = output_path + "_" + str(i) + ".mp4"
             execute_command("rm " + clip_path)
 
+        execute_command("rm " + video_path)
+        execute_command("rm " + timestamp_path)
+
     except Exception as e:
         ffff = open("/mnt/ramdisk/exc.txt", "w")
         ffff.write(str(e))
         ffff.close()
     
-    return "video.mp4"
+    return params

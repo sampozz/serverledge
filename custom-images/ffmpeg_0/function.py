@@ -14,7 +14,10 @@ def execute_command(command):
 
 
 def handler(params, context):
-    params['input'] = 'video.mp4'
+    input_dir = f"/mnt/ramdisk/{params['dir']}"
+
+    if not os.path.exists(input_dir):
+        os.makedirs(input_dir)
 
     print("Starting ffmpeg_0 function")
 
@@ -22,11 +25,11 @@ def handler(params, context):
         print(">_ " + command)
         subprocess.run(command.split())
 
-    input_file = params['input']
+    input_file = 'video.mp4'
     input_name = input_file.split('.')[0]
-    input_path = f"/mnt/ramdisk/{input_file}"
+    input_path = os.path.join('/mnt/ramdisk', input_file)
     output_name = f"{input_name}_ffmpeg_0_output"
-    output_dir = '/mnt/ramdisk/'
+    output_dir = input_dir
 
     print(f"SCRIPT: Input at '{input_path}', saving output in '{output_dir}/{output_name}'")
 
@@ -44,4 +47,4 @@ def handler(params, context):
     execute_command("rm " + video_name)
     execute_command("rm " + audio_name)
     
-    return "video.mp4"
+    return params

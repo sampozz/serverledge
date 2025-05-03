@@ -429,14 +429,15 @@ func WarmStatus() map[string]int {
 }
 
 func PrewarmInstances(f *function.Function, count int64, forcePull bool) (int64, error) {
-	image, err := getImageForFunction(f)
+	_, err := getImageForFunction(f)
 	if err != nil {
 		return 0, err
 	}
-	err = container.DownloadImage(image, forcePull)
-	if err != nil {
-		return 0, err
-	}
+	// log.Printf("Prewarming instances for function %s with image %s\n", f.Name, image)
+	// err = container.DownloadImage(image, forcePull)
+	// if err != nil {
+	// 	return 0, err
+	// }
 
 	var spawned int64 = 0
 	for spawned < count {

@@ -16,9 +16,9 @@ def get_command_output(command):
     return subprocess.run(command.split(), capture_output=True)
 
 
-def deepspeech(i):
-    orig_input = f"/mnt/ramdisk/video_ffmpeg_2_output_{str(i)}.tar.gz"
-    orig_output = f"/mnt/ramdisk/video_deepspeech_output_{str(i)}"
+def deepspeech(i, dir):
+    orig_input = f"{dir}/video_ffmpeg_2_output_{str(i)}.tar.gz"
+    orig_output = f"{dir}/video_deepspeech_output_{str(i)}"
 
     input_dir = os.path.dirname(orig_input)
     output_dir = os.path.dirname(orig_output)
@@ -55,11 +55,11 @@ def deepspeech(i):
 
 def handler(params, context):
     try:
-        input_folder = "/mnt/ramdisk/"
+        input_folder = f"/mnt/ramdisk/{params['dir']}"
         for file in os.listdir(input_folder):
             if "video_ffmpeg_2_output_" in file and file.endswith(".tar.gz"):
                 i = file.split("_")[-1].split(".")[0]
-                deepspeech(i)
+                deepspeech(i, input_folder)
                 execute_command("rm " + os.path.join(input_folder, file.replace(".tar.gz", ".mp4")))
                 execute_command("rm " + os.path.join(input_folder, file.replace(".tar.gz", ".wav")))
     except Exception as e:
@@ -67,5 +67,5 @@ def handler(params, context):
         f.write(str(e))
         f.close()
         
-    return "video.mp4"
+    return params
 

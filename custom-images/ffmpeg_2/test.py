@@ -3,7 +3,7 @@ import function
 def test_ffmpeg():
     # Mock parameters
     params = {
-        'input': 'video.mp4',
+        'dir': '1234',
     }
     
     # Mock context (if needed)
@@ -13,7 +13,7 @@ def test_ffmpeg():
     result = function.handler(params, context)
     
     # Check the result
-    assert result == True, "Function did not return True"
+    assert result == params, "Nope"
     
     print("Test passed!")
 

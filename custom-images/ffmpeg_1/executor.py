@@ -84,6 +84,7 @@ class Executor(BaseHTTPRequestHandler):
         try:
             result = function.handler(params, context)
             response["Result"] = json.dumps(result)
+            response["Output"] = json.dumps(result)
             response["Success"] = True
         except Exception as e:
             print(e, file=sys.stderr)

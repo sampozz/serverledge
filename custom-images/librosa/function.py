@@ -5,8 +5,16 @@ import math
 import os
 import argparse
 import subprocess
+import json
 
 from aisprint.annotations import annotation
+
+def handler(params, context):
+    try:
+        return librosa_handler(params, context)
+    except Exception as e:
+        params['error'] = str(e)
+        return params
 
 
 def execute_command(command):
@@ -24,15 +32,15 @@ def samples_to_timestamp(sample, is_start):
     return formatted_time, time_in_seconds
 
 
-def handler(params, context):
-    params['input'] = 'video.mp4'
+def librosa_handler(params, context):
+    input_dir = f'/mnt/ramdisk/{params["dir"]}'
 
-    name = params['input'].split(".")[0]
+    name = 'video'
     input_name = f'{name}_ffmpeg_0_output'
-    input_path = f"/mnt/ramdisk/{input_name}"
-    output_dir = '/mnt/ramdisk/'
+    input_path = f"{input_dir}/{input_name}"
+    output_dir = input_dir
     output_name = f'{name}_librosa_output'
-    output_path = f"/mnt/ramdisk/{output_name}"
+    output_path = f"{input_dir}/{output_name}"
 
     command = "tar -xvzf %s -C %s" % (f"{input_path}.tar.gz", output_dir)
     execute_command(command)
@@ -83,4 +91,4 @@ def handler(params, context):
     execute_command("rm " + video_file_path)
     execute_command("rm " + video_file_name)
 
-    return "video.mp4"
+    return params
