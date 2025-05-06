@@ -441,11 +441,13 @@ func PrewarmInstances(f *function.Function, count int64, forcePull bool) (int64,
 
 	var spawned int64 = 0
 	for spawned < count {
-		_, err = NewContainer(f)
+		contID, err := NewContainer(f)
 		if err != nil {
 			log.Printf("Prespawning failed: %v\n", err)
 			return spawned, err
 		}
+		// Move the container from the busy pool to the warm pool
+		ReleaseContainer(contID, f)
 		spawned += 1
 	}
 

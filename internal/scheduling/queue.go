@@ -1,6 +1,8 @@
 package scheduling
 
-import "sync"
+import (
+	"sync"
+)
 
 type queue interface {
 	Enqueue(r *scheduledRequest) bool

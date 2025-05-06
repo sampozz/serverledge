@@ -59,13 +59,16 @@ func Execute(contID container.ContainerID, r *scheduledRequest, isWarm bool) (fu
 		return function.ExecutionReport{}, fmt.Errorf("Function execution failed")
 	}
 
+	responseTime := time.Now().Sub(r.Arrival).Seconds()
+	duration := time.Now().Sub(t0).Seconds() - invocationWait.Seconds()
 	report := function.ExecutionReport{Result: response.Result,
 		Output:       response.Output,
 		IsWarmStart:  isWarm,
-		Duration:     time.Now().Sub(t0).Seconds() - invocationWait.Seconds(),
-		ResponseTime: time.Now().Sub(r.Arrival).Seconds()}
+		Duration:     duration,
+		ResponseTime: responseTime}
 
-	metrics.SetPressure(r.Fun.Name, time.Now().Sub(r.Arrival).Seconds())
+	metrics.SetPressure(r.Fun.Name, responseTime, 1)
+	metrics.SetQueueLength(r.Fun.Name, responseTime, duration)
 
 	// initializing containers may require invocation retries, adding
 	// latency

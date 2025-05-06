@@ -90,11 +90,11 @@ def get_cpu_utilization(function_name):
 def rl_agent_action(function, workload, pressure, queue_length, utilization, n_instances):
     # This function should return the number of instances to scale to
     data = {
-       "n_instances": n_instances if n_instances is not None else 0,
-       "pressure": pressure if pressure is not None else 0,
-       "queue_length_dominant": queue_length if queue_length is not None else 0,
-       "utilization": utilization if utilization is not None else 0,
-       "workload": workload if workload is not None else 0
+       "n_instances": int(n_instances) if n_instances is not None else 0,
+       "pressure": float(pressure) if pressure is not None else 0,
+       "queue_length_dominant": float(queue_length) if queue_length is not None else 0,
+       "utilization": float(utilization) if utilization is not None else 0,
+       "workload": float(workload) if workload is not None else 0
     }
     try:
         response = post(f'{AGENT_HOST}:{AGENT_PORT}/action', json={'observation': data})
@@ -141,9 +141,6 @@ if __name__ == "__main__":
             utilization = get_cpu_utilization(function)
             n_instances = get_number_of_instances(function)
 
-            if n_instances is None or n_instances == 0:
-                continue
-
             action = rl_agent_action(
                 function=function,
                 workload=workload,
@@ -153,18 +150,17 @@ if __name__ == "__main__":
                 n_instances=n_instances
             )
 
+            print(f"[{function}] Action from RL agent: {action}")
+
             prewarm_containers = action - n_instances
             if prewarm_containers > 0:
-                print(f"Prewarming {prewarm_containers} containers for function {function}")
+                print(f"[{function}] Prewarming {prewarm_containers} containers for function {function}")
                 # Call serverledge API to prewarm the containers
                 serverledge_prewarm(function, prewarm_containers)
 
-            # TODO: is the CPU utilization correct?
-                # we can use utilization = (number of available warm containers / number of running containers)
             # TODO: fix workload metric on serverledge
             # TODO: fix pressure metric on serverledge
-            # TODO: call a different RL agent for each function?
             # TODO: implement function downscale in serverledge
 
 
-        time.sleep(15)
+        time.sleep(5)

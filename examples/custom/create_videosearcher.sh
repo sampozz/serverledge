@@ -6,48 +6,48 @@ bin/serverledge-cli delete -f deepspeech
 bin/serverledge-cli delete -f grep
 
 bin/serverledge-cli create -f ffmpeg_0 \
-    --cpu 1.0 \
-    --memory 200 \
+    --cpu 0.1 \
+    --memory 100 \
     --runtime custom  \
     --handler "function.handler" \
     --custom_image serverledge-ffmpeg_0 \
     --input "dir:Text" --output "dir:Text"
 
 bin/serverledge-cli create -f librosa \
-    --cpu 1.0 \
-    --memory 200 \
+    --cpu 0.1 \
+    --memory 100 \
     --runtime custom  \
     --handler "function.handler" \
     --custom_image serverledge-librosa \
     --input "dir:Text" --output "dir:Text"
 
 bin/serverledge-cli create -f ffmpeg_1 \
-    --cpu 1.0 \
-    --memory 200 \
+    --cpu 0.1 \
+    --memory 100 \
     --runtime custom  \
     --handler "function.handler" \
     --custom_image serverledge-ffmpeg_1 \
     --input "dir:Text" --output "dir:Text"
 
 bin/serverledge-cli create -f ffmpeg_2 \
-    --cpu 1.0 \
-    --memory 200 \
+    --cpu 0.1 \
+    --memory 100 \
     --runtime custom  \
     --handler "function.handler" \
     --custom_image serverledge-ffmpeg_2 \
     --input "dir:Text" --output "dir:Text"
 
 bin/serverledge-cli create -f deepspeech \
-    --cpu 1.0 \
-    --memory 200 \
+    --cpu 0.1 \
+    --memory 100 \
     --runtime custom  \
     --handler "function.handler" \
     --custom_image serverledge-deepspeech \
     --input "dir:Text" --output "dir:Text"
 
 bin/serverledge-cli create -f grep \
-    --cpu 1.0 \
-    --memory 200 \
+    --cpu 0.1 \
+    --memory 100 \
     --runtime custom  \
     --handler "function.handler" \
     --custom_image serverledge-grep \

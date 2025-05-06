@@ -1,1 +1,2 @@
 metrics.enabled: true	
+scheduler.queue.capacity: 10000

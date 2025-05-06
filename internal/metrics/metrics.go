@@ -103,8 +103,7 @@ func AddFunctionDurationValue(funcName string, duration float64) {
 }
 
 // New functions for the requested metrics
-func SetPressure(funcName string, responseTime float64) {
-	threshold := 1.0
+func SetPressure(funcName string, responseTime float64, threshold float64) {
 	if !Enabled || threshold == 0 {
 		return
 	}
@@ -154,11 +153,11 @@ func UpdateWorkload(funcName string) {
 	Workload.With(prometheus.Labels{"function": funcName, "node": nodeIdentifier}).Set(rps)
 }
 
-func SetQueueLength(funcName string, length float64) {
+func SetQueueLength(funcName string, responseTime float64, demand float64) {
 	if !Enabled {
 		return
 	}
-	QueueLength.With(prometheus.Labels{"function": funcName, "node": nodeIdentifier}).Set(length)
+	QueueLength.With(prometheus.Labels{"function": funcName, "node": nodeIdentifier}).Set((responseTime - demand) / demand)
 }
 
 func UpdateCPUUtilization() {

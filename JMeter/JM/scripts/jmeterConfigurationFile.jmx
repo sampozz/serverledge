@@ -25,9 +25,9 @@
       </com.blazemeter.jmeter.threads.concurrency.ConcurrencyThreadGroup>
       <hashTree>
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Matrix Multiply - HTTP Request" enabled="true">
-          <stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>
+          <stringProp name="HTTPSampler.domain">10.0.0.57</stringProp>
           <stringProp name="HTTPSampler.port">1323</stringProp>
-          <stringProp name="HTTPSampler.path">/workflow/invoke/videosearcher_0</stringProp>
+          <stringProp name="HTTPSampler.path">/workflow/invoke/grep_0</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <stringProp name="HTTPSampler.method">POST</stringProp>
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
@@ -36,7 +36,7 @@
             <collectionProp name="Arguments.arguments">
               <elementProp name="" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
-                <stringProp name="Argument.value">{"params": {"dir": "1746283736.532508"}, "CanDoOffloading": false}</stringProp>
+                <stringProp name="Argument.value">{"params": {"dir": "123"}, "CanDoOffloading": false, "Async": false}</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
               </elementProp>
             </collectionProp>
