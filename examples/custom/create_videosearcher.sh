@@ -14,8 +14,8 @@ bin/serverledge-cli create -f ffmpeg_0 \
     --input "dir:Text" --output "dir:Text"
 
 bin/serverledge-cli create -f librosa \
-    --cpu 0.1 \
-    --memory 100 \
+    --cpu 0.5 \
+    --memory 200 \
     --runtime custom  \
     --handler "function.handler" \
     --custom_image serverledge-librosa \
@@ -30,7 +30,7 @@ bin/serverledge-cli create -f ffmpeg_1 \
     --input "dir:Text" --output "dir:Text"
 
 bin/serverledge-cli create -f ffmpeg_2 \
-    --cpu 0.1 \
+    --cpu 1.5 \
     --memory 100 \
     --runtime custom  \
     --handler "function.handler" \
@@ -38,8 +38,8 @@ bin/serverledge-cli create -f ffmpeg_2 \
     --input "dir:Text" --output "dir:Text"
 
 bin/serverledge-cli create -f deepspeech \
-    --cpu 0.1 \
-    --memory 100 \
+    --cpu 2 \
+    --memory 500 \
     --runtime custom  \
     --handler "function.handler" \
     --custom_image serverledge-deepspeech \

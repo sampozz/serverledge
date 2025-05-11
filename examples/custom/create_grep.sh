@@ -1,7 +1,7 @@
 bin/serverledge-cli delete -f grep
 
 bin/serverledge-cli create -f grep \
-    --cpu 0.5 \
+    --cpu 0.1 \
     --memory 100 \
     --runtime custom  \
     --handler "function.handler" \

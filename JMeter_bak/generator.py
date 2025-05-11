@@ -6,22 +6,33 @@ from jmeterConfig import *
 import json
 import time
 
-seconds = 180
-baseRPS = 50
-amplitude = 35
-noiseSTD = 7
+seconds = 1800
+baseRPS = 0.3
+amplitude = 0.3
+noiseSTD = 0.1
 
 # Generate time vector
-t = np.linspace(0, 2 * np.pi, seconds)
+t = np.linspace(0, 10 * np.pi, seconds)
 
 # Sinusoidal pattern + noise
-rps = baseRPS + amplitude * np.sin(t - 15) + np.random.normal(0, noiseSTD, seconds)
+rps = baseRPS + amplitude * np.sin(t) + np.random.normal(0, noiseSTD, seconds)
+print(rps)
 
-# Clean it up (no negative RPS)
-rps = np.clip(rps, 1, None)
+# Remove negative values
+rps[rps < 0] = 0
 
-df = pd.DataFrame({'Time': range(seconds), 'RPS': rps.astype(int)})
+df = pd.DataFrame({'Time': range(seconds), 'RPS': rps.astype(float)})
 df.to_csv("workloadProfile.csv", index = False, sep = ';')
+
+# Plot the RPS over time
+plt.figure(figsize=(10, 6))
+plt.plot(df['Time'], df['RPS'], label='RPS')
+plt.title('RPS Over Time')
+plt.xlabel('Time (seconds)')
+plt.ylabel('Requests Per Second (RPS)')
+plt.legend()
+plt.grid(True)
+plt.savefig("RPS_Over_Time.png")
 
 # File where we have defined the specific workload behaviour
 workload = 'workloadProfile.csv'

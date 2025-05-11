@@ -3,7 +3,6 @@ package metrics
 import (
 	"log"
 	"net/http"
-	"runtime"
 	"sync"
 	"time"
 
@@ -47,11 +46,6 @@ var (
 		Name: "sedge_queue_length",
 		Help: "Current queue length",
 	}, []string{"node", "function"})
-
-	CPUUtilization = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "sedge_cpu_utilization",
-		Help: "CPU utilization percentage",
-	})
 )
 
 var durationBuckets = []float64{0.002, 0.005, 0.010, 0.02, 0.03, 0.05, 0.1, 0.15, 0.3, 0.6, 1.0}
@@ -160,20 +154,10 @@ func SetQueueLength(funcName string, responseTime float64, demand float64) {
 	QueueLength.With(prometheus.Labels{"function": funcName, "node": nodeIdentifier}).Set((responseTime - demand) / demand)
 }
 
-func UpdateCPUUtilization() {
-	if !Enabled {
-		return
-	}
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-	CPUUtilization.Set(float64(runtime.NumGoroutine())) // This is a simple proxy for CPU usage, consider using a proper CPU metrics library
-}
-
 func registerGlobalMetrics() {
 	registry.MustRegister(CompletedInvocations)
 	registry.MustRegister(ExecutionTimes)
 	registry.MustRegister(Pressure)
 	registry.MustRegister(Workload)
 	registry.MustRegister(QueueLength)
-	registry.MustRegister(CPUUtilization)
 }

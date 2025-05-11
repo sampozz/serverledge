@@ -127,40 +127,62 @@ def serverledge_prewarm(function_name, n_containers):
     except Exception as e:
         print(f"Exception occurred: {e}")
     return False
-    
+
+
+def save_metrics(log, function, workload, pressure, queue_length, utilization, n_instances, action):
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    log.write(f"{timestamp},{function},{workload},{pressure},{queue_length},{utilization},{n_instances},{action}\n")
+    log.flush()
+
 
 if __name__ == "__main__":
-    while True:
-        functions = get_functions_list()
-        print('Available functions:', functions)
+    log = open(f'jmeter/logs/log-{time.strftime("%Y%m%d-%H%M%S")}.csv', 'w')
+    log.write('timestamp,function,workload,pressure,queue_length,utilization,n_instances,action\n')
+
+    serverledge_prewarm('ffmpeg_0', 1)
+
+    try:
+        while True:
+            functions = get_functions_list()
+            print('Available functions:', functions)
+            
+            for function in functions:
+                if function != 'ffmpeg_0':
+                    continue
+
+                workload = get_function_metrics(function, 'sedge_workload')
+                pressure = get_function_metrics(function, 'sedge_pressure')
+                queue_length = get_function_metrics(function, 'sedge_queue_length')
+                utilization = get_cpu_utilization(function)
+                n_instances = get_number_of_instances(function)
+
+                action = rl_agent_action(
+                    function=function,
+                    workload=workload,
+                    pressure=pressure,
+                    queue_length=queue_length,
+                    utilization=utilization,
+                    n_instances=n_instances
+                )
+
+                save_metrics(log, function, workload, pressure, queue_length, utilization, n_instances, action)
+
+                print(f"[{function}] Action from RL agent: {action}")
+
+                # prewarm_containers = action - n_instances
+                # if prewarm_containers > 0:
+                #     print(f"[{function}] Prewarming {prewarm_containers} containers for function {function}")
+                #     # Call serverledge API to prewarm the containers
+                #     serverledge_prewarm(function, prewarm_containers)
+
+                # TODO: fix workload metric on serverledge
+                # TODO: fix pressure metric on serverledge
+                # TODO: implement function downscale in serverledge
+
+            time.sleep(5)
         
-        for function in functions:
-            workload = get_function_metrics(function, 'sedge_workload')
-            pressure = get_function_metrics(function, 'sedge_pressure')
-            queue_length = get_function_metrics(function, 'sedge_queue_length')
-            utilization = get_cpu_utilization(function)
-            n_instances = get_number_of_instances(function)
-
-            action = rl_agent_action(
-                function=function,
-                workload=workload,
-                pressure=pressure,
-                queue_length=queue_length,
-                utilization=utilization,
-                n_instances=n_instances
-            )
-
-            print(f"[{function}] Action from RL agent: {action}")
-
-            prewarm_containers = action - n_instances
-            if prewarm_containers > 0:
-                print(f"[{function}] Prewarming {prewarm_containers} containers for function {function}")
-                # Call serverledge API to prewarm the containers
-                serverledge_prewarm(function, prewarm_containers)
-
-            # TODO: fix workload metric on serverledge
-            # TODO: fix pressure metric on serverledge
-            # TODO: implement function downscale in serverledge
-
-
-        time.sleep(5)
+    except KeyboardInterrupt:
+        print("Exiting...")
+    finally:
+        log.close()
+        print("Metrics file closed.")

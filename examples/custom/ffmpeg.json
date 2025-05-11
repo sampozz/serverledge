@@ -1,0 +1,11 @@
+{
+    "Comment": "First videosearcher workflow",
+    "StartAt": "ffmpeg",
+    "States": {
+        "ffmpeg": {
+            "Type": "Task",
+            "Resource": "ffmpeg_0",
+            "End": true
+        }
+    }
+}
