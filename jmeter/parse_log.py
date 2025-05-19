@@ -41,7 +41,7 @@ def parse_log(log):
     }
 
 # Example usage 
-log = open('logs/log-20250509-140918.csv', 'r')
+log = open('logs/log-20250512-144417.csv', 'r')
 metrics = parse_log(log)
 print(metrics)
 log.close()

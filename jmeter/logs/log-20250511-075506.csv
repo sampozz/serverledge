@@ -1,2 +1,0 @@
-timestamp,function,workload,pressure,queue_length,utilization,n_instances,action
-2025-05-11 07:55:07,grep,None,None,None,0.06288061224489797,1,1

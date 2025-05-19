@@ -8,3 +8,4 @@ default.etcd
 *.pbmm
 *.scorer
 venv/
+logs/

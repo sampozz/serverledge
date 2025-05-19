@@ -47,31 +47,31 @@ func (p *DefaultLocalPolicy) OnCompletion(_ *function.Function, _ *function.Exec
 		return
 	}
 
-	if errors.Is(err, node.NoWarmFoundErr) {
-		if node.AcquireResources(req.Fun.CPUDemand, req.Fun.MemoryMB, true) {
-			log.Printf("[%s] Cold start from the queue\n", req)
-			p.queue.Dequeue()
+	// if errors.Is(err, node.NoWarmFoundErr) {
+	// 	if node.AcquireResources(req.Fun.CPUDemand, req.Fun.MemoryMB, true) {
+	// 		log.Printf("[%s] Cold start from the queue\n", req)
+	// 		p.queue.Dequeue()
 
-			// This avoids blocking the thread during the cold
-			// start, but also allows us to check for resource
-			// availability before dequeueing
-			go func() {
-				newContainer, err := node.NewContainerWithAcquiredResources(req.Fun)
-				if err != nil {
-					dropRequest(req)
-				} else {
-					execLocally(req, newContainer, false)
-				}
-			}()
-			return
-		}
-	} else if errors.Is(err, node.OutOfResourcesErr) {
-	} else {
-		// other error
-		log.Printf("%v", err)
-		p.queue.Dequeue()
-		dropRequest(req)
-	}
+	// 		// This avoids blocking the thread during the cold
+	// 		// start, but also allows us to check for resource
+	// 		// availability before dequeueing
+	// 		go func() {
+	// 			newContainer, err := node.NewContainerWithAcquiredResources(req.Fun)
+	// 			if err != nil {
+	// 				dropRequest(req)
+	// 			} else {
+	// 				execLocally(req, newContainer, false)
+	// 			}
+	// 		}()
+	// 		return
+	// 	}
+	// } else if errors.Is(err, node.OutOfResourcesErr) {
+	// } else {
+	// 	// other error
+	// 	log.Printf("%v", err)
+	// 	p.queue.Dequeue()
+	// 	dropRequest(req)
+	// }
 }
 
 // OnArrival for default policy is executed every time a function is invoked, before invoking the function

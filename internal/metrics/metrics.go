@@ -56,7 +56,7 @@ var (
 	previousCounts = make(map[string]int)
 	windowStart    = time.Now()
 	workloadMutex  = &sync.Mutex{}
-	windowDuration = 1 * time.Second
+	windowDuration = 60 * time.Second
 )
 
 func Init() {

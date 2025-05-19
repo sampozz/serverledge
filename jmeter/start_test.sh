@@ -1,1 +1,2 @@
-jmeter -n -t ~/serverledge/jmeter/newsintestload.jmx -l ~/serverledge/jmeter/result.log -e -o report-folder
+rm result.log
+jmeter -n -t ~/serverledge/jmeter/sintestload.jmx -l ~/serverledge/jmeter/result.log -e -o report-folder
