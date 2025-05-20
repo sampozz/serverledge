@@ -25,7 +25,7 @@
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="HTTP Request" enabled="true">
           <stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>
           <stringProp name="HTTPSampler.port">1323</stringProp>
-          <stringProp name="HTTPSampler.path">/workflow/invoke/${workflow_name}</stringProp>
+          <stringProp name="HTTPSampler.path">/workflow/invoke/grep_0</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <stringProp name="HTTPSampler.method">POST</stringProp>
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
@@ -34,7 +34,7 @@
             <collectionProp name="Arguments.arguments">
               <elementProp name="" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
-                <stringProp name="Argument.value">{&quot;params&quot;: {&quot;dir&quot;: &quot;${param_dir}&quot;}, &quot;CanDoOffloading&quot;: false, &quot;Async&quot;: false}</stringProp>
+                <stringProp name="Argument.value">{&quot;params&quot;: {&quot;dir&quot;: &quot;1234&quot;}, &quot;CanDoOffloading&quot;: false, &quot;Async&quot;: false}</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
               </elementProp>
             </collectionProp>

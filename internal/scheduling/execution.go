@@ -69,6 +69,8 @@ func Execute(contID container.ContainerID, r *scheduledRequest, isWarm bool) (fu
 
 	metrics.SetPressure(r.Fun.Name, responseTime, 1)
 	metrics.SetQueueLength(r.Fun.Name, responseTime, duration)
+	metrics.SetResponseTime(r.Fun.Name, responseTime)
+	metrics.SetServiceTime(r.Fun.Name, duration)
 
 	// initializing containers may require invocation retries, adding
 	// latency

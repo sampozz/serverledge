@@ -9,6 +9,9 @@ SERVERLEDGE_PORT = 1323
 AGENT_PORT = 5100
 PROMETHEUS_PORT = 9090
 
+avg_response_times = {}
+iterations = {}
+
 def get_serverledge_status():
     try:
         response = get(f'{SERVERLEDGE_HOST}:{SERVERLEDGE_PORT}/status')
@@ -42,7 +45,7 @@ def get_function_metrics(function_name, metric_name):
         if 'data' in data and 'result' in data['data']:
             for result in data['data']['result']:
                 if function_name in result['metric'].get('function', ''):
-                    return result['value'][1]
+                    return float(result['value'][1])
         else:
             print("No data found for the given function.")
             return None
@@ -89,13 +92,12 @@ def get_cpu_utilization(function_name):
 
 def rl_agent_action(function, workload, pressure, queue_length, utilization, n_instances):
     # This function should return the number of instances to scale to
-    return 1
     data = {
        "n_instances": int(n_instances) if n_instances is not None else 0,
-       "pressure": float(pressure) if pressure is not None else 0,
-       "queue_length_dominant": float(queue_length) if queue_length is not None else 0,
-       "utilization": float(utilization) if utilization is not None else 0,
-       "workload": float(workload) if workload is not None else 0
+       "pressure": pressure if pressure is not None else 0,
+       "queue_length_dominant": queue_length if queue_length is not None else 0,
+       "utilization": utilization if utilization is not None else 0,
+       "workload": workload if workload is not None else 0
     }
     try:
         response = post(f'{AGENT_HOST}:{AGENT_PORT}/action', json={'observation': data})
@@ -130,15 +132,49 @@ def serverledge_prewarm(function_name, n_containers):
     return False
 
 
-def save_metrics(log, function, workload, pressure, queue_length, utilization, n_instances, action):
+def compute_queue_length(response_time, service_time):
+    if response_time is None or service_time is None:
+        return 0
+    return (response_time - service_time) / service_time 
+
+
+def compute_utilization(workload, service_time, n_instances):
+    if workload is None or service_time is None or n_instances is None:
+        return 0
+    return workload * service_time / n_instances if n_instances > 0 else 0
+
+
+def save_metrics(log, function, workload, pressure, queue_length, utilization, response_time, service_time, theoretical_utilization, n_instances, action):
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-    log.write(f"{timestamp},{function},{workload},{pressure},{queue_length},{utilization},{n_instances},{action}\n")
+    log.write(f"{timestamp},{function},{workload},{pressure},{queue_length},{utilization},{response_time},{service_time},{theoretical_utilization},{n_instances},{action}\n")
     log.flush()
+    
+
+def compute_avg_response_time(function, response_time):
+    if response_time is None:
+        return None
+    
+    global avg_response_times
+    global iterations
+
+    if function not in avg_response_times:
+        avg_response_times[function] = response_time
+    else:
+        avg_response_times[function] = (avg_response_times[function] * iterations[function] + response_time) / (iterations[function] + 1)
+    
+    iterations[function] = iterations.get(function, 0) + 1
+    return avg_response_times[function]
+
+
+def compute_pressure(response_time, avg_response_time):
+    if response_time is None or avg_response_time is None:
+        return 0
+    return response_time / avg_response_time if avg_response_time > 0 else 0
 
 
 if __name__ == "__main__":
     log = open(f'jmeter/logs/log-{time.strftime("%Y%m%d-%H%M%S")}.csv', 'w')
-    log.write('timestamp,function,workload,pressure,queue_length,utilization,n_instances,action\n')
+    log.write('timestamp,function,workload,pressure,queue_length,utilization,response_time,service_time,theoretical_utilization,n_instances,action\n')
 
     try:
         while True:
@@ -146,14 +182,21 @@ if __name__ == "__main__":
             print('Available functions:', functions)
             
             for function in functions:
-                if function != 'grep':
+                if function != 'ffmpeg_0':
                     continue
 
                 workload = get_function_metrics(function, 'sedge_workload')
-                pressure = get_function_metrics(function, 'sedge_pressure')
-                queue_length = get_function_metrics(function, 'sedge_queue_length')
+                # pressure = get_function_metrics(function, 'sedge_pressure')
+                # queue_length = get_function_metrics(function, 'sedge_queue_length')
                 utilization = get_cpu_utilization(function)
+                response_time = get_function_metrics(function, 'sedge_response_time')
+                service_time = get_function_metrics(function, 'sedge_service_time')
                 n_instances = get_number_of_instances(function)
+                
+                avg_response_time = compute_avg_response_time(function, response_time)
+                queue_length = compute_queue_length(response_time, service_time)
+                pressure = compute_pressure(response_time, avg_response_time)
+                theoretical_utilization = compute_utilization(workload, service_time, n_instances)
 
                 action = rl_agent_action(
                     function=function,
@@ -164,10 +207,11 @@ if __name__ == "__main__":
                     n_instances=n_instances
                 )
 
-                save_metrics(log, function, workload, pressure, queue_length, utilization, n_instances, action)
+                save_metrics(log, function, workload, pressure, queue_length, utilization, response_time, service_time, theoretical_utilization, n_instances, action)
 
                 print(f"[{function}] Action from RL agent: {action}")
 
+                action = 1
                 prewarm_containers = action - n_instances
                 if prewarm_containers > 0:
                     print(f"[{function}] Prewarming {prewarm_containers} containers for function {function}")

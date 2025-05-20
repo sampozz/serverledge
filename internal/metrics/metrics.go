@@ -37,6 +37,16 @@ var (
 		Help: "Response time divided by threshold (pressure metric)",
 	}, []string{"node", "function"})
 
+	ResponseTime = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "sedge_response_time",
+		Help: "Function response time in seconds",
+	}, []string{"node", "function"})
+
+	ServiceTime = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "sedge_service_time",
+		Help: "Function service time in seconds",
+	}, []string{"node", "function"})
+
 	Workload = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "sedge_workload",
 		Help: "Number of requests per second",
@@ -105,6 +115,20 @@ func SetPressure(funcName string, responseTime float64, threshold float64) {
 	Pressure.With(prometheus.Labels{"function": funcName, "node": nodeIdentifier}).Set(pressure)
 }
 
+func SetResponseTime(funcName string, responseTime float64) {
+	if !Enabled {
+		return
+	}
+	ResponseTime.With(prometheus.Labels{"function": funcName, "node": nodeIdentifier}).Set(responseTime)
+}
+
+func SetServiceTime(funcName string, serviceTime float64) {
+	if !Enabled {
+		return
+	}
+	ServiceTime.With(prometheus.Labels{"function": funcName, "node": nodeIdentifier}).Set(serviceTime)
+}
+
 func UpdateWorkload(funcName string) {
 	if !Enabled {
 		return
@@ -158,6 +182,8 @@ func registerGlobalMetrics() {
 	registry.MustRegister(CompletedInvocations)
 	registry.MustRegister(ExecutionTimes)
 	registry.MustRegister(Pressure)
+	registry.MustRegister(ResponseTime)
+	registry.MustRegister(ServiceTime)
 	registry.MustRegister(Workload)
 	registry.MustRegister(QueueLength)
 }

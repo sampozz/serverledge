@@ -27,6 +27,7 @@ type busyContainer struct {
 }
 
 var NoWarmFoundErr = errors.New("no warm container is available")
+var alreadyBusyErr = errors.New("container is already busy")
 
 // GetFunctionPool retrieves (or creates) the container pool for a function.
 func GetFunctionPool(f *function.Function) *ContainerPool {
@@ -126,6 +127,12 @@ func AcquireWarmContainer(f *function.Function) (container.ContainerID, error) {
 	defer Resources.Unlock()
 
 	fp := GetFunctionPool(f)
+
+	// if fp.busy.Len() > 0 {
+	// 	//log.Printf("Container already busy for %s\n", f)
+	// 	return "", alreadyBusyErr
+	// }
+
 	contID, found := fp.getWarmContainer()
 	if !found {
 		if contID == "no function" {

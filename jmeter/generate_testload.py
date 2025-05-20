@@ -70,10 +70,10 @@ def writeWorkload(root, workload):
     return root
 
 
-seconds = 1800
-baseRPS = 0.6
+seconds = 3600
+baseRPS = 0.1
 amplitude = 0.2
-noiseSTD = 0.05
+noiseSTD = 0.01
 
 # Generate time vector
 t = np.linspace(0, 6 * np.pi, seconds)
