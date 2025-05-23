@@ -76,6 +76,8 @@ func Run(p Policy) {
 // SubmitRequest submits a newly arrived request for scheduling and execution
 func SubmitRequest(r *function.Request) (function.ExecutionReport, error) {
 	metrics.UpdateWorkload(r.Fun.Name)
+	// metrics.RecordTimestamp(r.Fun.Name)
+	// metrics.ExportKernelEstimatedWorkload()
 
 	schedRequest := scheduledRequest{
 		Request:         r,

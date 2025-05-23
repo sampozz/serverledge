@@ -70,13 +70,13 @@ def writeWorkload(root, workload):
     return root
 
 
-seconds = 3600
+seconds = 1800
 baseRPS = 0.1
-amplitude = 0.2
+amplitude = 0.4
 noiseSTD = 0.01
 
 # Generate time vector
-t = np.linspace(0, 6 * np.pi, seconds)
+t = np.linspace(0, 3 * np.pi, seconds)
 # Sinusoidal pattern + noise
 rps = baseRPS + amplitude * np.sin(t) + np.random.normal(0, noiseSTD, seconds)
 # Remove negative values

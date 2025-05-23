@@ -47,27 +47,36 @@ var (
 		Help: "Function service time in seconds",
 	}, []string{"node", "function"})
 
-	Workload = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "sedge_workload",
-		Help: "Number of requests per second",
-	}, []string{"node", "function"})
-
 	QueueLength = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "sedge_queue_length",
 		Help: "Current queue length",
 	}, []string{"node", "function"})
+
+	Workload = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "sedge_workload",
+		Help: "Requests per second over the last 60 seconds",
+	}, []string{"node", "function"})
+)
+
+const (
+	windowSize  = 6                       // 6 buckets
+	bucketSize  = 10                      // 10 seconds per bucket
+	windowTotal = windowSize * bucketSize // 60 seconds
+)
+
+type workloadData struct {
+	counts      [windowSize]int
+	currentSlot int
+	lastBucket  int
+	lastUpdated time.Time
+}
+
+var (
+	workloadMu sync.Mutex
+	workloads  = make(map[string]*workloadData)
 )
 
 var durationBuckets = []float64{0.002, 0.005, 0.010, 0.02, 0.03, 0.05, 0.1, 0.15, 0.3, 0.6, 1.0}
-
-// Add these package-level variables
-var (
-	currentCounts  = make(map[string]int)
-	previousCounts = make(map[string]int)
-	windowStart    = time.Now()
-	workloadMutex  = &sync.Mutex{}
-	windowDuration = 60 * time.Second
-)
 
 func Init() {
 	if config.GetBool(config.METRICS_ENABLED, false) {
@@ -129,53 +138,60 @@ func SetServiceTime(funcName string, serviceTime float64) {
 	ServiceTime.With(prometheus.Labels{"function": funcName, "node": nodeIdentifier}).Set(serviceTime)
 }
 
-func UpdateWorkload(funcName string) {
-	if !Enabled {
-		return
-	}
-
-	workloadMutex.Lock()
-	defer workloadMutex.Unlock()
-
-	key := funcName + ":" + nodeIdentifier
-	now := time.Now()
-
-	// Check if we need to rotate windows
-	if now.Sub(windowStart) >= windowDuration {
-		// Move current counts to previous
-		previousCounts = currentCounts
-		// Reset current counts
-		currentCounts = make(map[string]int)
-		// Update window start time
-		windowStart = now
-	}
-
-	// Increment request count for this function
-	currentCounts[key]++
-
-	// Calculate requests per second based on the previous completed window
-	// (or current window if there's no previous data)
-	var rps float64
-	if count, ok := previousCounts[key]; ok {
-		rps = float64(count) / windowDuration.Seconds()
-	} else if count, ok := currentCounts[key]; ok {
-		// If we don't have previous data, use current data with elapsed time
-		elapsed := now.Sub(windowStart).Seconds()
-		if elapsed > 0 {
-			rps = float64(count) / elapsed
-		} else {
-			rps = float64(count) // Avoid division by zero
-		}
-	}
-
-	Workload.With(prometheus.Labels{"function": funcName, "node": nodeIdentifier}).Set(rps)
-}
-
 func SetQueueLength(funcName string, responseTime float64, demand float64) {
 	if !Enabled {
 		return
 	}
 	QueueLength.With(prometheus.Labels{"function": funcName, "node": nodeIdentifier}).Set((responseTime - demand) / demand)
+}
+
+func UpdateWorkload(funcName string) {
+	if !Enabled {
+		return
+	}
+
+	now := time.Now()
+	bucket := int(now.Unix()) / bucketSize
+
+	workloadMu.Lock()
+	defer workloadMu.Unlock()
+
+	data, exists := workloads[funcName]
+	if !exists {
+		data = &workloadData{
+			currentSlot: bucket % windowSize,
+			lastBucket:  bucket,
+			lastUpdated: now,
+		}
+		workloads[funcName] = data
+	}
+
+	// Advance window if we've moved ahead
+	steps := bucket - data.lastBucket
+	if steps > 0 {
+		for i := 1; i <= steps && i <= windowSize; i++ {
+			clearIndex := (data.currentSlot + i) % windowSize
+			data.counts[clearIndex] = 0
+		}
+		data.currentSlot = (data.currentSlot + steps) % windowSize
+		data.lastBucket = bucket
+	}
+
+	// Record request in current bucket
+	data.counts[data.currentSlot]++
+	data.lastUpdated = now
+
+	// Compute RPS
+	var total int
+	for _, c := range data.counts {
+		total += c
+	}
+	rps := float64(total) / float64(windowTotal)
+
+	Workload.With(prometheus.Labels{
+		"node":     nodeIdentifier,
+		"function": funcName,
+	}).Set(rps)
 }
 
 func registerGlobalMetrics() {
@@ -184,6 +200,6 @@ func registerGlobalMetrics() {
 	registry.MustRegister(Pressure)
 	registry.MustRegister(ResponseTime)
 	registry.MustRegister(ServiceTime)
-	registry.MustRegister(Workload)
 	registry.MustRegister(QueueLength)
+	registry.MustRegister(Workload)
 }

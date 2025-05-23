@@ -218,8 +218,6 @@ if __name__ == "__main__":
                     # Call serverledge API to prewarm the containers
                     serverledge_prewarm(function, prewarm_containers)
 
-                # TODO: fix workload metric on serverledge
-                # TODO: fix pressure metric on serverledge
                 # TODO: implement function downscale in serverledge
 
             time.sleep(5)
