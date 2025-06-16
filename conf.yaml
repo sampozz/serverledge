@@ -1,2 +1,3 @@
 metrics.enabled: true	
 scheduler.queue.capacity: 10000
+container.pool.memory: 10240

@@ -90,6 +90,8 @@ func Init() {
 	nodeIdentifier = node.NodeIdentifier
 	registerGlobalMetrics()
 
+	StartPeriodicWorkloadUpdates()
+
 	handler := promhttp.HandlerFor(registry, promhttp.HandlerOpts{
 		EnableOpenMetrics: true})
 	http.Handle("/metrics", handler)
@@ -192,6 +194,59 @@ func UpdateWorkload(funcName string) {
 		"node":     nodeIdentifier,
 		"function": funcName,
 	}).Set(rps)
+}
+
+// UpdateAllWorkloads updates the workload metrics for all tracked functions
+func UpdateAllWorkloads() {
+	if !Enabled {
+		return
+	}
+
+	workloadMu.Lock()
+	defer workloadMu.Unlock()
+
+	now := time.Now()
+	bucket := int(now.Unix()) / bucketSize
+
+	for funcName, data := range workloads {
+		// Advance window if needed
+		steps := bucket - data.lastBucket
+		if steps > 0 {
+			for i := 1; i <= steps && i <= windowSize; i++ {
+				clearIndex := (data.currentSlot + i) % windowSize
+				data.counts[clearIndex] = 0
+			}
+			data.currentSlot = (data.currentSlot + steps) % windowSize
+			data.lastBucket = bucket
+			data.lastUpdated = now
+		}
+
+		// Compute and update RPS
+		var total int
+		for _, c := range data.counts {
+			total += c
+		}
+		rps := float64(total) / float64(windowTotal)
+
+		Workload.With(prometheus.Labels{
+			"node":     nodeIdentifier,
+			"function": funcName,
+		}).Set(rps)
+	}
+}
+
+// StartPeriodicWorkloadUpdates starts a background routine to periodically update workload metrics
+func StartPeriodicWorkloadUpdates() {
+	if !Enabled {
+		return
+	}
+
+	ticker := time.NewTicker(time.Duration(bucketSize) * time.Second)
+	go func() {
+		for range ticker.C {
+			UpdateAllWorkloads()
+		}
+	}()
 }
 
 func registerGlobalMetrics() {

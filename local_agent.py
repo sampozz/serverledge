@@ -92,6 +92,7 @@ def get_cpu_utilization(function_name):
 
 def rl_agent_action(function, workload, pressure, queue_length, utilization, n_instances):
     # This function should return the number of instances to scale to
+    return 1
     data = {
        "n_instances": int(n_instances) if n_instances is not None else 0,
        "pressure": pressure if pressure is not None else 0,
@@ -173,7 +174,7 @@ def compute_pressure(response_time, avg_response_time):
 
 
 if __name__ == "__main__":
-    log = open(f'jmeter/logs/log-{time.strftime("%Y%m%d-%H%M%S")}.csv', 'w')
+    log = open(f'locust_test/logs/log-{time.strftime("%Y%m%d-%H%M%S")}.csv', 'w')
     log.write('timestamp,function,workload,pressure,queue_length,utilization,response_time,service_time,theoretical_utilization,n_instances,action\n')
 
     try:
@@ -182,8 +183,8 @@ if __name__ == "__main__":
             print('Available functions:', functions)
             
             for function in functions:
-                if function != 'ffmpeg_0':
-                    continue
+                # if function != 'ffmpeg_0' and function != 'librosa':
+                #     continue
 
                 workload = get_function_metrics(function, 'sedge_workload')
                 # pressure = get_function_metrics(function, 'sedge_pressure')
@@ -211,7 +212,6 @@ if __name__ == "__main__":
 
                 print(f"[{function}] Action from RL agent: {action}")
 
-                action = 1
                 prewarm_containers = action - n_instances
                 if prewarm_containers > 0:
                     print(f"[{function}] Prewarming {prewarm_containers} containers for function {function}")

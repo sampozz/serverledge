@@ -1,0 +1,16 @@
+{
+    "Comment": "First videosearcher workflow",
+    "StartAt": "ffmpeg_0",
+    "States": {
+        "ffmpeg_0": {
+            "Type": "Task",
+            "Resource": "ffmpeg_0",
+            "Next": "librosa"
+        },
+        "librosa": {
+            "Type": "Task",
+            "Resource": "librosa",
+            "End": true
+        }
+    }
+}
