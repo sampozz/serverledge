@@ -9,6 +9,11 @@ SERVERLEDGE_PORT = 1323
 AGENT_PORT = 5100
 PROMETHEUS_PORT = 9090
 
+METRICS_INTERVAL = 5
+AGENT_INTERVAL = 60
+
+cum_metrics = {}
+avg_metrics = {}
 avg_response_times = {}
 iterations = {}
 
@@ -90,16 +95,28 @@ def get_cpu_utilization(function_name):
     return (cpu_utilization / len(containers) if containers else 0) / 100
 
 
-def rl_agent_action(function, workload, pressure, queue_length, utilization, n_instances):
+def rl_agent_action(function, n_instances):
     # This function should return the number of instances to scale to
-    return 1
+    if (iterations.get(function, 1) * METRICS_INTERVAL) % AGENT_INTERVAL != 0:
+        # return n_instances  # Skip action if not time for agent to act
+        return 1
+    
+    fract = AGENT_INTERVAL / METRICS_INTERVAL
     data = {
        "n_instances": int(n_instances) if n_instances is not None else 0,
-       "pressure": pressure if pressure is not None else 0,
-       "queue_length_dominant": queue_length if queue_length is not None else 0,
-       "utilization": utilization if utilization is not None else 0,
-       "workload": workload if workload is not None else 0
+       "pressure": cum_metrics.get(function, {}).get('pressure', 0) / fract,
+       "queue_length_dominant": cum_metrics.get(function, {}).get('queue_length', 0) / fract,
+       "utilization": cum_metrics.get(function, {}).get('utilization', 0) / fract,
+       "workload": cum_metrics.get(function, {}).get('workload', 0) / fract,
     }
+    
+    if not function in avg_metrics:
+        avg_metrics[function] = [data]
+    else:
+        avg_metrics[function].append(data)
+    
+    del cum_metrics[function]  # Reset cumulative metrics for the next interval
+    return 2
     try:
         response = post(f'{AGENT_HOST}:{AGENT_PORT}/action', json={'observation': data})
         if response.status_code == 200:
@@ -163,7 +180,6 @@ def compute_avg_response_time(function, response_time):
     else:
         avg_response_times[function] = (avg_response_times[function] * iterations[function] + response_time) / (iterations[function] + 1)
     
-    iterations[function] = iterations.get(function, 0) + 1
     return avg_response_times[function]
 
 
@@ -173,22 +189,41 @@ def compute_pressure(response_time, avg_response_time):
     return response_time / avg_response_time if avg_response_time > 0 else 0
 
 
+def set_avg_metrics(function, workload, pressure, queue_length, utilization, response_time, service_time, theoretical_utilization):
+    global cum_metrics
+    if (iterations.get(function, 1) * METRICS_INTERVAL) % AGENT_INTERVAL != 0:
+        cum_metrics[function] = {
+            'workload': workload if workload else 0 + cum_metrics.get(function, {}).get('workload', 0),
+            'pressure': pressure + cum_metrics.get(function, {}).get('pressure', 0),
+            'queue_length_dominant': queue_length + cum_metrics.get(function, {}).get('queue_length', 0),
+            'utilization': utilization + cum_metrics.get(function, {}).get('utilization', 0),
+            'theoretical_utilization': theoretical_utilization + cum_metrics.get(function, {}).get('theoretical_utilization', 0),
+        }
+
+
+def save_avg_metrics(timestamp):
+    avg_log = open(f'locust_test/logs/avg-log-{timestamp}.csv', 'w')
+    avg_log.write('timestamp,function,workload,pressure,queue_length_dominant,utilization\n')
+    for function, metrics in avg_metrics.items():
+        for metric in metrics:
+            avg_log.write(f"{timestamp},{function},{metric['workload']},{metric['pressure']},{metric['queue_length_dominant']},{metric['utilization']}\n")
+    avg_log.close()
+    
+
 if __name__ == "__main__":
-    log = open(f'locust_test/logs/log-{time.strftime("%Y%m%d-%H%M%S")}.csv', 'w')
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    log = open(f'locust_test/logs/log-{timestamp}.csv', 'w')
     log.write('timestamp,function,workload,pressure,queue_length,utilization,response_time,service_time,theoretical_utilization,n_instances,action\n')
 
     try:
         while True:
             functions = get_functions_list()
-            print('Available functions:', functions)
+            # print('Available functions:', functions)
             
             for function in functions:
-                # if function != 'ffmpeg_0' and function != 'librosa':
-                #     continue
-
+                iterations[function] = iterations.get(function, 0) + 1
+                
                 workload = get_function_metrics(function, 'sedge_workload')
-                # pressure = get_function_metrics(function, 'sedge_pressure')
-                # queue_length = get_function_metrics(function, 'sedge_queue_length')
                 utilization = get_cpu_utilization(function)
                 response_time = get_function_metrics(function, 'sedge_response_time')
                 service_time = get_function_metrics(function, 'sedge_service_time')
@@ -198,19 +233,14 @@ if __name__ == "__main__":
                 queue_length = compute_queue_length(response_time, service_time)
                 pressure = compute_pressure(response_time, avg_response_time)
                 theoretical_utilization = compute_utilization(workload, service_time, n_instances)
+                
+                set_avg_metrics(function, workload, pressure, queue_length, utilization, response_time, service_time, theoretical_utilization)
 
-                action = rl_agent_action(
-                    function=function,
-                    workload=workload,
-                    pressure=pressure,
-                    queue_length=queue_length,
-                    utilization=utilization,
-                    n_instances=n_instances
-                )
+                action = rl_agent_action(function=function, n_instances=n_instances)
 
                 save_metrics(log, function, workload, pressure, queue_length, utilization, response_time, service_time, theoretical_utilization, n_instances, action)
 
-                print(f"[{function}] Action from RL agent: {action}")
+                # print(f"[{function}] Action from RL agent: {action}")
 
                 prewarm_containers = action - n_instances
                 if prewarm_containers > 0:
@@ -220,10 +250,11 @@ if __name__ == "__main__":
 
                 # TODO: implement function downscale in serverledge
 
-            time.sleep(5)
+            time.sleep(METRICS_INTERVAL)
         
     except KeyboardInterrupt:
         print("Exiting...")
     finally:
+        save_avg_metrics(timestamp)
         log.close()
         print("Metrics file closed.")

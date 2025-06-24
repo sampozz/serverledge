@@ -1,0 +1,11 @@
+{
+    "Comment": "First videosearcher workflow",
+    "StartAt": "deepspeech",
+    "States": {
+        "deepspeech": {
+            "Type": "Task",
+            "Resource": "deepspeech",
+            "End": true
+        }
+    }
+}

@@ -9,12 +9,12 @@ import matplotlib.pyplot as plt
 # === Constants ===
 HOST = "10.0.0.57"
 PORT = 1323
-WORKFLOW_NAME = "ffmpeg"
+WORKFLOW_NAME = "deepspeech_0"
 
 SECONDS = 2700  # 45 minutes
-BASE_RPS = 0.1
-AMPLITUDE = 0.4
-NOISE_STD = 0.01
+BASE_RPS = 1
+AMPLITUDE = 0
+NOISE_STD = 0
 
 # === Precompute the RPS pattern ===
 np.random.seed(42)  # for reproducibility

@@ -11,15 +11,15 @@ from datetime import datetime
 # === Constants ===
 HOST = "10.0.0.57"
 PORT = 1323
-WORKFLOW_NAME = "videosearcher_0"
+WORKFLOW_NAME = "deepspeech_0"
 
-SCALE = 120
+SCALE = 90
 
-SECONDS     = 2760 # 45 minutes
+SECONDS     = 2700 # 45 minutes
 RPS_POINTS  = int(SECONDS / SCALE)
-BASE_RPS    = 0.014 * SCALE
-AMPLITUDE   = 0.01 * SCALE
-NOISE_STD   = 0.001 * SCALE
+BASE_RPS    = 0.05 * SCALE
+AMPLITUDE   = 0.05 * SCALE
+NOISE_STD   = 0.01 * SCALE
 
 # List to store request timestamps
 request_timestamps = []
@@ -106,10 +106,10 @@ class SinusoidalUser(HttpUser):
             inter_arrival_times = np.random.exponential(1.0 / current_rps, size=num_requests)
             # print(f"Inter-arrival times: {inter_arrival_times}")
             send_times = np.cumsum(inter_arrival_times)
-            # print(f"Send times: {send_times}")
+            print(f"Send times: {send_times}")
 
             # Clip all to 1 second
-            # send_times = send_times[send_times < 1.0]
+            send_times = send_times[send_times < 1.0]
 
             for delay in send_times:
                 gevent.spawn_later(
