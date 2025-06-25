@@ -14,7 +14,7 @@ METRICS_INTERVAL = 5  # Interval in seconds to fetch metrics
 AGENT_INTERVAL = 60  # Interval in seconds to send data to the agent
 
 class Serverledge:
-    """A class to interact with Serverledge server and Prometheus metrics."""
+    """A class to interact with Serverledge server."""
     
     def __init__(self, serverledge_host=SERVERLEDGE_HOST, serverledge_port=SERVERLEDGE_PORT, prometheus_port=PROMETHEUS_PORT):
         self.serverledge_url = f'{serverledge_host}:{serverledge_port}'
@@ -87,7 +87,7 @@ class Serverledge:
         
     
     def query_metric(self, metric_name):
-        """Queries a specific metric from Prometheus.
+        """Queries a specific metric from Prometheus and updates the last_metrics dictionary.
         
         Args:
             metric_name (str): The name of the metric to query.
@@ -176,7 +176,7 @@ class Serverledge:
 
 
 class RLAgent:
-    """A class to interact with the Serverledge agent."""
+    """A class to interact with the FIGARO RL agent."""
     
     def __init__(self, function, agent_host=AGENT_HOST, agent_port=AGENT_PORT):
         self.function = function
@@ -191,11 +191,11 @@ class RLAgent:
         self.log.write('timestamp,function,workload,pressure,queue_length_dominant,utilization,response_time,service_time,theoretical_utilization,n_instances\n')
         
         self.avg_log = open(f'locust_test/logs/avg_log-{function}-{timestamp}.csv', 'w')
-        self.avg_log.write('timestamp,function,workload,pressure,queue_length_dominant,utilization,theoretical_utilization\n')
+        self.avg_log.write('timestamp,function,workload,pressure,queue_length_dominant,utilization,theoretical_utilization,response_time,service_time\n')
         
         
     def update_data(self, metrics, utilization, n_instances):
-        """Updates the agent's data with the latest metrics and utilization.
+        """Updates the agent's cumulative data with the latest metrics and utilization.
         
         Args:
             metrics (dict): A dictionary containing the latest metrics.
@@ -203,13 +203,12 @@ class RLAgent:
             n_instances (int): The number of instances currently running.
         """
         self.n_instances = n_instances
-        self.iteration += 1
         
         response_time = metrics.get('sedge_response_time', 0.0)
         service_time = metrics.get('sedge_service_time', 0.0)
         workload = metrics.get('sedge_workload', 0.0)
         
-        self.compute_avg_response_time(response_time)
+        self.update_avg_response_time(response_time)
         theoretical_utilization = self.compute_utilization(workload, service_time)
         queue_length = self.compute_queue_length(response_time, service_time)
         pressure = self.compute_pressure(response_time)
@@ -223,25 +222,27 @@ class RLAgent:
             'queue_length_dominant': queue_length + self.cumulative_data.get('queue_length_dominant', 0),
             'utilization': utilization + self.cumulative_data.get('utilization', 0),
             'theoretical_utilization': theoretical_utilization + self.cumulative_data.get('theoretical_utilization', 0),
+            'response_time': response_time + self.cumulative_data.get('response_time', 0),
+            'service_time': service_time + self.cumulative_data.get('service_time', 0),
         }
         
+        self.iteration += 1
+        
 
-    def compute_avg_response_time(self, response_time):        
+    def update_avg_response_time(self, response_time):        
         """Computes the average response time based on the current and previous response times.
+        
         Args:
             response_time (float): The current response time to include in the average.
         Returns:
             float: The updated average response time.
         """
-        if self.iteration == 0:
-            self.avg_response_time = response_time
-        else:
-            self.avg_response_time = (self.avg_response_time * self.iteration + response_time) / self.iteration 
+        self.avg_response_time = (self.avg_response_time * self.iteration + response_time) / (self.iteration + 1) 
         return self.avg_response_time
     
     
     def compute_utilization(self, workload, service_time):
-        """Computes the utilization based on service time.
+        """Computes the utilization based on workload and service time.
         
         Args:
             workload (float): The workload to compute utilization from.
@@ -280,6 +281,8 @@ class RLAgent:
     
     def action(self):
         """Sends an observation to the RL agent and retrieves the action.
+        The observation is the average of the cumulative data collected so far.
+        The cumulative data is reset after sending the action.
         
         Args:
             data (dict): The observation data to send to the agent.
@@ -301,9 +304,11 @@ class RLAgent:
             'queue_length_dominant': self.cumulative_data['queue_length_dominant'] / self.iteration,
             'utilization': self.cumulative_data['utilization'] / self.iteration,
             'theoretical_utilization': self.cumulative_data['theoretical_utilization'] / self.iteration,
+            'response_time': self.cumulative_data['response_time'] / self.iteration,
+            'service_time': self.cumulative_data['service_time'] / self.iteration
         }
         
-        self.avg_log.write(f"{time.time()},{self.function},{avg_data['workload']},{avg_data['pressure']},{avg_data['queue_length_dominant']},{avg_data['utilization']},{avg_data['theoretical_utilization']}\n")
+        self.avg_log.write(f"{time.time()},{self.function},{avg_data['workload']},{avg_data['pressure']},{avg_data['queue_length_dominant']},{avg_data['utilization']},{avg_data['theoretical_utilization']},{avg_data['response_time']},{avg_data['service_time']}\n")
         self.avg_log.flush()
         
         self.cumulative_data = {}
@@ -351,6 +356,7 @@ if __name__ == "__main__":
                 
                 if iterations % (AGENT_INTERVAL / METRICS_INTERVAL) == 0:
                     action = agents[fun].action()
+                    print(f"Action for {fun}: {action}")
                 
                 prewarm_containers = action - n_instances
                 if prewarm_containers > 0:
