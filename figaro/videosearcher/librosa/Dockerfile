@@ -6,7 +6,7 @@ RUN mkdir /mnt/ramdisk
 WORKDIR /opt/videosearcher
 
 # Copy requirements files
-COPY requirements.* /opt/videosearcher/
+COPY ./figaro/videosearcher/librosa/requirements.* /opt/videosearcher/
 
 # Instal system requirements first
 RUN touch requirements.sys && \
@@ -19,7 +19,7 @@ RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application and onnx models
-COPY . /opt/videosearcher/
+COPY ./figaro/videosearcher/librosa/ /opt/videosearcher/
 
 # TODO: WHAT TO RUN?
 # RUN chmod +x /opt/videosearcher/script.sh
