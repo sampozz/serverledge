@@ -4,7 +4,7 @@
     "States": {
         "ffmpeg": {
             "Type": "Task",
-            "Resource": "ffmpeg_0",
+            "Resource": "ffmpeg_2",
             "End": true
         }
     }

@@ -1,11 +1,11 @@
-bin/serverledge-cli delete -f ffmpeg_0
+bin/serverledge-cli delete -f ffmpeg_2
 
-bin/serverledge-cli create -f ffmpeg_0 \
+bin/serverledge-cli create -f ffmpeg_2 \
     --cpu 1.0 \
-    --memory 100 \
+    --memory 1024 \
     --runtime custom  \
     --handler "function.handler" \
-    --custom_image serverledge-ffmpeg_0 \
+    --custom_image serverledge-ffmpeg_2 \
     --input "dir:Text" --output "dir:Text"
 
 # Create input file into /mnt/ramdisk

@@ -139,18 +139,18 @@ class Serverledge:
         return len(containers) if containers else 0
     
     
-    def get_cpu_utilization(self, function_name):
-        """Returns the CPU utilization of a specific function.
+    def get_docker_stats(self, function_name):
+        """Fetches CPU and RAM utilization for a specific function's Docker containers.
         
         Args:
             function_name (str): The name of the function to check.
             
         Returns:
-            float: The CPU utilization percentage or 0.0 if no instances are running.
+            dict: A dictionary containing CPU and RAM utilization percentages.
         """
         image_name = f'serverledge-{function_name}'
         containers = self.docker.containers.list(filters={"ancestor": image_name})
-        cpu_utilization = 0
+        cpu_utilization, ram_utilization = 0, 0
 
         for container in containers:
             stats = container.stats(stream=False)
@@ -171,8 +171,21 @@ class Serverledge:
                 cpu_percent = 0.0
                 
             cpu_utilization += cpu_percent    
-        
-        return (cpu_utilization / len(containers) if containers else 0) / 100
+            
+            # Extract memory stats
+            memory_usage = stats["memory_stats"]["usage"]
+            memory_limit = stats["memory_stats"]["limit"]
+            
+            if memory_limit > 0:
+                ram_percent = (memory_usage / memory_limit) * 100.0
+            else:
+                ram_percent = 0.0
+                
+            ram_utilization += ram_percent
+            
+        cpu_res = (cpu_utilization / len(containers) if containers else 0) / 100
+        ram_res = (ram_utilization / len(containers) if containers else 0) / 100
+        return {'cpu': cpu_res, 'ram': ram_res}
 
 
 class RLAgent:
@@ -188,13 +201,13 @@ class RLAgent:
         
         timestamp = time.strftime("%Y%m%d-%H%M%S")
         self.log = open(f'locust_test/logs/log-{function}-{timestamp}.csv', 'w')
-        self.log.write('timestamp,function,workload,pressure,queue_length_dominant,utilization,response_time,service_time,theoretical_utilization,n_instances\n')
+        self.log.write('timestamp,function,workload,pressure,queue_length_dominant,utilization,ram_utilization,response_time,service_time,theoretical_utilization,n_instances\n')
         
         self.avg_log = open(f'locust_test/logs/avg_log-{function}-{timestamp}.csv', 'w')
         self.avg_log.write('timestamp,function,workload,pressure,queue_length_dominant,utilization,theoretical_utilization,response_time,service_time\n')
         
         
-    def update_data(self, metrics, utilization, n_instances):
+    def update_data(self, metrics, docker_stats, n_instances):
         """Updates the agent's cumulative data with the latest metrics and utilization.
         
         Args:
@@ -207,13 +220,15 @@ class RLAgent:
         response_time = metrics.get('sedge_response_time', 0.0)
         service_time = metrics.get('sedge_service_time', 0.0)
         workload = metrics.get('sedge_workload', 0.0)
+        utilization = docker_stats.get('cpu', 0.0)
+        ram_utilization = docker_stats.get('ram', 0.0)
         
         self.update_avg_response_time(response_time)
         theoretical_utilization = self.compute_utilization(workload, service_time)
         queue_length = self.compute_queue_length(response_time, service_time)
         pressure = self.compute_pressure(response_time)
         
-        self.log.write(f"{time.time()},{self.function},{workload},{pressure},{queue_length},{utilization},{response_time},{service_time},{theoretical_utilization},{self.n_instances}\n")
+        self.log.write(f"{time.time()},{self.function},{workload},{pressure},{queue_length},{utilization},{ram_utilization},{response_time},{service_time},{theoretical_utilization},{self.n_instances}\n")
         self.log.flush()
         
         self.cumulative_data = {
@@ -349,10 +364,10 @@ if __name__ == "__main__":
                 
             for fun in functions:
                 prometheus_metrics = serverledge.last_metrics.get(fun, {})
-                utilization = serverledge.get_cpu_utilization(fun)
+                docker_stats = serverledge.get_docker_stats(fun)
                 n_instances = serverledge.get_number_of_instances(fun)
                 
-                agents[fun].update_data(prometheus_metrics, utilization, n_instances)
+                agents[fun].update_data(prometheus_metrics, docker_stats, n_instances)
                 
                 if iterations % (AGENT_INTERVAL / METRICS_INTERVAL) == 0:
                     action = agents[fun].action()
