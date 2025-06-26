@@ -17,10 +17,6 @@ if ! command -v docker &> /dev/null; then
   error "Docker is not installed. Please install Docker first."
 fi
 
-if ! command -v docker-compose &> /dev/null; then
-  error "Docker Compose is not installed. Please install Docker Compose first."
-fi
-
 if ! command -v go &> /dev/null; then
   error "Go is not installed. Please install Go first."
 fi
@@ -61,7 +57,7 @@ if [ ! -f "figaro/videosearcher/deepspeech/deepspeech-0.9.3-models.pbmm" ]; then
   log "Downloading DeepSpeech model..."
   
   wget -O figaro/videosearcher/deepspeech/deepspeech-0.9.3-models.pbmm https://github.com/mozilla/DeepSpeech/releases/download/v0.9.3/deepspeech-0.9.3-models.pbmm
-  curl -O /figaro/videosearcher/deepspeech/deepspeech-0.9.3-models.scorer https://github.com/mozilla/DeepSpeech/releases/download/v0.9.3/deepspeech-0.9.3-models.scorer
+  wget -O figaro/videosearcher/deepspeech/deepspeech-0.9.3-models.scorer https://github.com/mozilla/DeepSpeech/releases/download/v0.9.3/deepspeech-0.9.3-models.scorer
 
   if [ $? -ne 0 ]; then
     error "Failed to download DeepSpeech model."
@@ -73,10 +69,10 @@ fi
 log "Building all Docker images and starting services..."
 
 # Build all images including the videosearcher function images
-docker-compose --profile build-only build
+docker compose --profile build-only build
 
 # Start the main services (etcd, prometheus, figaro-agent, figaro-controller)
-docker-compose up -d
+docker compose up -d
 
 if [ $? -ne 0 ]; then
   error "Failed to start services with Docker Compose."

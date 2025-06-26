@@ -58,7 +58,7 @@ services:
   ffmpeg_0:
     build:
       context: .
-      dockerfile: figaro/ffmpeg_0/Dockerfile
+      dockerfile: figaro/videosearcher/ffmpeg_0/Dockerfile
     image: ffmpeg_0:latest
     profiles:
       - build-only  # This profile prevents the service from starting by default
@@ -66,7 +66,7 @@ services:
   ffmpeg_1:
     build:
       context: .
-      dockerfile: figaro/ffmpeg_1/Dockerfile
+      dockerfile: figaro/videosearcher/ffmpeg_1/Dockerfile
     image: ffmpeg_1:latest
     profiles:
       - build-only
@@ -74,7 +74,7 @@ services:
   ffmpeg_2:
     build:
       context: .
-      dockerfile: figaro/ffmpeg_2/Dockerfile
+      dockerfile: figaro/videosearcher/ffmpeg_2/Dockerfile
     image: ffmpeg_2:latest
     profiles:
       - build-only
@@ -82,7 +82,7 @@ services:
   librosa:
     build:
       context: .
-      dockerfile: figaro/librosa/Dockerfile
+      dockerfile: figaro/videosearcher/librosa/Dockerfile
     image: librosa:latest
     profiles:
       - build-only
@@ -90,7 +90,7 @@ services:
   deepspeech:
     build:
       context: .
-      dockerfile: figaro/deepspeech/Dockerfile
+      dockerfile: figaro/videosearcher/deepspeech/Dockerfile
     image: deepspeech:latest
     profiles:
       - build-only
@@ -98,7 +98,7 @@ services:
   grep:
     build:
       context: .
-      dockerfile: figaro/grep/Dockerfile
+      dockerfile: figaro/videosearcher/grep/Dockerfile
     image: grep:latest
     profiles:
       - build-only
