@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  # Core infrastructure services
+  etcd:
+    image: bitnami/etcd:3.5.14-debian-12-r1
+    container_name: Etcd-server
+    ports:
+      - "2379:2379"
+      - "2380:2380"
+    environment:
+      - ALLOW_NONE_AUTHENTICATION=yes
+      - ETCD_ADVERTISE_CLIENT_URLS=http://localhost:2379
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.37.1
+    container_name: prometheusLocal
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    restart: unless-stopped
+
+  # FIGARO services
+  figaro-agent:
+    build:
+      context: .
+      dockerfile: figaro/agent/src/production_agents/DQN/Dockerfile
+    image: figaro-production_agent:latest
+    container_name: figaro-agent
+    ports:
+      - "5100:5000"
+    restart: unless-stopped
+
+  figaro-controller:
+    build:
+      context: .
+      dockerfile: figaro/controller/Dockerfile
+    image: figaro-controller:latest
+    container_name: figaro-controller
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+    restart: unless-stopped
+    depends_on:
+      - etcd
+      - prometheus
+      - figaro-agent
+
+  # Videosearcher function images (these are built but not run as services)
+  # These are run by serverledge on demand
+  ffmpeg_0:
+    build:
+      context: .
+      dockerfile: figaro/ffmpeg_0/Dockerfile
+    image: ffmpeg_0:latest
+    profiles:
+      - build-only  # This profile prevents the service from starting by default
+
+  ffmpeg_1:
+    build:
+      context: .
+      dockerfile: figaro/ffmpeg_1/Dockerfile
+    image: ffmpeg_1:latest
+    profiles:
+      - build-only
+
+  ffmpeg_2:
+    build:
+      context: .
+      dockerfile: figaro/ffmpeg_2/Dockerfile
+    image: ffmpeg_2:latest
+    profiles:
+      - build-only
+
+  librosa:
+    build:
+      context: .
+      dockerfile: figaro/librosa/Dockerfile
+    image: librosa:latest
+    profiles:
+      - build-only
+
+  deepspeech:
+    build:
+      context: .
+      dockerfile: figaro/deepspeech/Dockerfile
+    image: deepspeech:latest
+    profiles:
+      - build-only
+
+  grep:
+    build:
+      context: .
+      dockerfile: figaro/grep/Dockerfile
+    image: grep:latest
+    profiles:
+      - build-only

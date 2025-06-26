@@ -23,12 +23,6 @@ image-base:
 image-nodejs17ng:
 	docker build -t $(DOCKERHUB_USER)/serverledge-nodejs17ng -f images/nodejs17ng/Dockerfile .
 
-custom:
-	for dir in $(shell find ./custom-images -mindepth 1 -maxdepth 1 -type d); do \
-		image_name=$$(basename $$dir); \
-		docker build -t serverledge-$$image_name -f $$dir/Dockerfile $$dir; \
-	done
-
 push-images:
 	docker push $(DOCKERHUB_USER)/serverledge-python310
 	docker push $(DOCKERHUB_USER)/serverledge-base

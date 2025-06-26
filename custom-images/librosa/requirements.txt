@@ -1,2 +1,0 @@
-SoundFile
-librosa==0.8.1

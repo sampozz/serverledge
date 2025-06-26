@@ -1,0 +1,11 @@
+{
+    "Comment": "First videosearcher workflow",
+    "StartAt": "grep",
+    "States": {
+        "grep": {
+            "Type": "Task",
+            "Resource": "grep",
+            "End": true
+        }
+    }
+}
