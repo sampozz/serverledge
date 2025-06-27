@@ -1,0 +1,5 @@
+locust
+numpy
+pandas
+requests
+matplotlib

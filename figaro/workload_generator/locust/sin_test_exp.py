@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 
 # === Constants ===
-HOST = "10.0.0.57"
+HOST = "127.0.0.1"
 PORT = 1323
 WORKFLOW_NAME = "deepspeech_0"
 

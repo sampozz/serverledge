@@ -17,7 +17,7 @@ Follow these steps to set up the project:
 
 1. Clone the repo
    ```sh
-   git clone https://github.com/sampoz/serverledge.git
+   git clone https://github.com/sampozz/serverledge.git
    ```
 2. Run the setup script
    ```sh
