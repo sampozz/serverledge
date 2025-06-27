@@ -1,0 +1,4 @@
+metrics.enabled: true	
+scheduler.queue.capacity: 1000
+container.pool.memory: 20480
+etcd.address: "etcd:2379"

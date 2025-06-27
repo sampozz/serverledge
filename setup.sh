@@ -3,7 +3,7 @@
 set -euo pipefail
 
 log() {
-  echo -e "\n[INFO] $1\n"
+  echo -e "[INFO] $1"
 }
 
 error() {
@@ -22,21 +22,13 @@ if ! command -v go &> /dev/null; then
 fi
 
 log "All dependencies are installed."
-log "Building serverledge binary..."
-
-# Build the Go binary (this still needs to be done outside Docker Compose)
-make all
-
-if [ ! -f "bin/serverledge" ]; then
-  error "Failed to build serverledge."
-fi
-
-log "Serverledge built successfully."
 log "Building base images..."
 
 # Build base images (these are still handled by Makefile)
+cd serverledge || error "Failed to change directory to serverledge."
 make image-python310
 make image-base
+cd .. || error "Failed to change directory back to root."
 
 log "Base images built successfully."
 log "Creating RAMDISK on /mnt/ramdisk..."
@@ -78,13 +70,13 @@ if [ $? -ne 0 ]; then
   error "Failed to start services with Docker Compose."
 fi
 
-log "All services started successfully!"
+log "\nAll services started successfully!"
 log "Services running:"
+log "- serverledge: http://localhost:1323"
 log "- etcd: http://localhost:2379"
-log "- Prometheus: http://localhost:9090"
-log "- FIGARO Agent: http://localhost:5100"
-log "- FIGARO Controller: running"
+log "- prometheus: http://localhost:9090"
+log "- figaro-agent: http://localhost:5100"
+log "- figaro-controller: running\n"
 
-log "To view logs: docker-compose logs -f [service-name]"
-log "To stop all services: docker-compose down"
-log "To stop and remove volumes: docker-compose down -v"
+log "To view logs: docker compose logs -f [service-name]"
+log "To stop all services: docker compose down"

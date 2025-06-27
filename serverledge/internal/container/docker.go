@@ -23,7 +23,8 @@ type DockerFactory struct {
 
 func InitDockerContainerFactory() *DockerFactory {
 	ctx := context.Background()
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	baseURL := "unix:///var/run/docker.sock"
+	cli, err := client.NewClientWithOpts(client.WithHost(baseURL), client.WithAPIVersionNegotiation())
 	if err != nil {
 		panic(err)
 	}
@@ -59,8 +60,9 @@ func (cf *DockerFactory) Create(image string, opts *ContainerOptions) (Container
 		Env:   opts.Env,
 		Tty:   false,
 	}, &container.HostConfig{
-		Resources: contResources,
-		Binds:     volumeBinds, // Add volume bindings here
+		Resources:   contResources,
+		Binds:       volumeBinds, // Add volume bindings here
+		NetworkMode: "serverledge_default",
 	}, nil, nil, "")
 
 	if err != nil {
@@ -147,6 +149,7 @@ func (cf *DockerFactory) GetIPAddress(contID ContainerID) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	log.Printf("Container %s has IP address %s\n", contID, contJson.NetworkSettings.EndpointID)
 	return contJson.NetworkSettings.IPAddress, nil
 }
 
@@ -177,4 +180,17 @@ func (cf *DockerFactory) GetLog(contID ContainerID) (string, error) {
 		return "no logs", fmt.Errorf("can't read the logs: %v", err)
 	}
 	return string(logs[:]), nil
+}
+
+func (cf *DockerFactory) GetContainerName(contID ContainerID) (string, error) {
+	contJson, err := cf.cli.ContainerInspect(cf.ctx, contID)
+	if err != nil {
+		return "", err
+	}
+	name := contJson.Name
+	// Remove leading slash if present
+	if strings.HasPrefix(name, "/") {
+		name = name[1:]
+	}
+	return name, nil
 }

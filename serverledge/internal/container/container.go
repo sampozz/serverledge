@@ -45,7 +45,8 @@ func NewContainer(image, codeTar string, opts *ContainerOptions) (ContainerID, e
 // Execute interacts with the Executor running in the container to invoke the
 // function through a HTTP request.
 func Execute(contID ContainerID, req *executor.InvocationRequest) (*executor.InvocationResult, time.Duration, error) {
-	ipAddr, err := cf.GetIPAddress(contID)
+	// ipAddr, err := cf.GetIPAddress(contID)
+	ipAddr, err := cf.GetContainerName(contID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("Failed to retrieve IP address for container: %v", err)
 	}

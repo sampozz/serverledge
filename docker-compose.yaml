@@ -28,6 +28,22 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
     restart: unless-stopped
 
+  serverledge:
+    build:
+      context: serverledge
+      dockerfile: Dockerfile
+    image: serverledge:latest
+    container_name: serverledge
+    ports:
+      - "1323:1323"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+      - ./serverledge/conf.yaml:/app/conf.yaml:rw
+    depends_on:
+      - etcd
+      - prometheus
+    restart: no
+
   # FIGARO services
   figaro-agent:
     build:
@@ -47,6 +63,7 @@ services:
     container_name: figaro-controller
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:rw
+      - ./logs:/app/logs:rw
     restart: unless-stopped
     depends_on:
       - etcd

@@ -6,8 +6,9 @@ import docker
 # docker run -v /var/run/docker.sock:/var/run/docker.sock controller
 
 
-SERVERLEDGE_HOST = 'http://127.0.0.1'
-AGENT_HOST = 'http://127.0.0.1'
+SERVERLEDGE_HOST = 'http://serverledge'
+PROMETHEUS_HOST = 'http://prometheus'
+AGENT_HOST = 'http://figaro-agent'
 SERVERLEDGE_PORT = 1323
 AGENT_PORT = 5100
 PROMETHEUS_PORT = 9090
@@ -25,9 +26,10 @@ def printf(*args, **kwargs):
 class Serverledge:
     """A class to interact with Serverledge server."""
     
-    def __init__(self, docker_client, serverledge_host=SERVERLEDGE_HOST, serverledge_port=SERVERLEDGE_PORT, prometheus_port=PROMETHEUS_PORT):
+    def __init__(self, docker_client, serverledge_host=SERVERLEDGE_HOST, serverledge_port=SERVERLEDGE_PORT, 
+                 prometheus_host=PROMETHEUS_HOST, prometheus_port=PROMETHEUS_PORT):
         self.serverledge_url = f'{serverledge_host}:{serverledge_port}'
-        self.prometheus_url = f'{serverledge_host}:{prometheus_port}'
+        self.prometheus_url = f'{prometheus_host}:{prometheus_port}'
         self.functions = []
         self.last_metrics = {}
         self.docker = docker_client
@@ -359,21 +361,29 @@ class RLAgent:
 if __name__ == "__main__":
     docker_client = docker.DockerClient(base_url='unix://var/run/docker.sock')
     serverledge = Serverledge(docker_client)    
-    functions = serverledge.list()
-    
-    if not functions:
-        printf("No functions found. Exiting.")
-        exit(1)
-    
-    # Spawn RL agents for each function
-    agents = {fun: RLAgent(fun) for fun in functions}
-    iterations = 0
+    functions = []
+    agents = {}
     
     try:
+        iterations = 0
         while True:
+            # Discover new functions and update agents
+            new_functions = serverledge.list()
+            if new_functions:
+                for fun in new_functions:
+                    if fun not in agents:
+                        agents[fun] = RLAgent(fun)
+                        printf(f"New function discovered: {fun}") 
+                functions = new_functions
+            else:
+                time.sleep(METRICS_INTERVAL)
+                continue
+            
+            # Query metrics from Prometheus and update agents
             for metric in PROMETHEUS_METRICS:
                 serverledge.query_metric(metric)
                 
+            # Update agents with the latest metrics and Docker stats
             for fun in functions:
                 prometheus_metrics = serverledge.last_metrics.get(fun, {})
                 docker_stats = serverledge.get_docker_stats(fun)

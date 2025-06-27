@@ -13,6 +13,7 @@ type Factory interface {
 	HasImage(string) bool
 	PullImage(string) error
 	GetIPAddress(ContainerID) (string, error)
+	GetContainerName(ContainerID) (string, error)
 	GetMemoryMB(id ContainerID) (int64, error)
 	GetLog(id ContainerID) (string, error)
 }
