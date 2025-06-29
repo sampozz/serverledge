@@ -2,10 +2,6 @@ import time
 from requests import *
 import docker
 
-# docker build -t controller .
-# docker run -v /var/run/docker.sock:/var/run/docker.sock controller
-
-
 SERVERLEDGE_HOST = 'http://serverledge'
 PROMETHEUS_HOST = 'http://prometheus'
 AGENT_HOST = 'http://figaro-agent'
@@ -209,8 +205,8 @@ class RLAgent:
         self.n_instances = 1
         
         timestamp = time.strftime("%Y%m%d-%H%M%S")
-        self.log = open(f'logs/log-{function}-{timestamp}.csv', 'w')
-        self.log.write('timestamp,function,workload,pressure,queue_length_dominant,utilization,ram_utilization,response_time,service_time,theoretical_utilization,n_instances\n')
+        # self.log = open(f'logs/log-{function}-{timestamp}.csv', 'w')
+        # self.log.write('timestamp,function,workload,pressure,queue_length_dominant,utilization,ram_utilization,response_time,service_time,theoretical_utilization,n_instances\n')
         
         self.avg_log = open(f'logs/avg_log-{function}-{timestamp}.csv', 'w')
         self.avg_log.write('timestamp,function,workload,pressure,queue_length_dominant,utilization,theoretical_utilization,response_time,service_time\n')
@@ -237,8 +233,8 @@ class RLAgent:
         queue_length = self.compute_queue_length(response_time, service_time)
         pressure = self.compute_pressure(response_time)
         
-        self.log.write(f"{time.time()},{self.function},{workload},{pressure},{queue_length},{utilization},{ram_utilization},{response_time},{service_time},{theoretical_utilization},{self.n_instances}\n")
-        self.log.flush()
+        # self.log.write(f"{time.time()},{self.function},{workload},{pressure},{queue_length},{utilization},{ram_utilization},{response_time},{service_time},{theoretical_utilization},{self.n_instances}\n")
+        # self.log.flush()
         
         self.cumulative_data = {
             'workload': workload + self.cumulative_data.get('workload', 0),
@@ -407,6 +403,6 @@ if __name__ == "__main__":
         printf("Stopping the agent...")
     finally:
         for agent in agents.values():
-            agent.log.close()
+            # agent.log.close()
             agent.avg_log.close()
         printf("Logs saved and agent stopped.")

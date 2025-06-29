@@ -17,8 +17,8 @@ if ! command -v docker &> /dev/null; then
   error "Docker is not installed. Please install Docker first."
 fi
 
-if ! command -v go &> /dev/null; then
-  error "Go is not installed. Please install Go first."
+if ! docker compose version &>/dev/null; then
+    error "Docker Compose is not installed. Please install Docker Compose first."
 fi
 
 log "All dependencies are installed."

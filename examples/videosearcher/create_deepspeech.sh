@@ -1,6 +1,6 @@
-serverledge/bin/serverledge-cli delete -f deepspeech
+docker compose exec -it serverledge bin/serverledge-cli delete -f deepspeech
 
-serverledge/bin/serverledge-cli create -f deepspeech \
+docker compose exec -it serverledge bin/serverledge-cli create -f deepspeech \
     --cpu 1.0 \
     --memory 1024 \
     --runtime custom  \
@@ -8,7 +8,7 @@ serverledge/bin/serverledge-cli create -f deepspeech \
     --custom_image deepspeech \
     --input "dir:Text" --output "dir:Text"
 
-# Create input file into /mnt/ramdisk
+docker compose cp ./examples/videosearcher/deepspeech.json serverledge:/app/deepspeech.json 
 
-serverledge/bin/serverledge-cli delete-workflow -f deepspeech_0
-serverledge/bin/serverledge-cli create-workflow -f deepspeech_0 -s ~/serverledge/examples/videosearcher/deepspeech.json
+docker compose exec -it serverledge bin/serverledge-cli delete-workflow -f deepspeech_0
+docker compose exec -it serverledge bin/serverledge-cli create-workflow -f deepspeech_0 -s /app/deepspeech.json

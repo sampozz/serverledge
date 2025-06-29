@@ -9,17 +9,20 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 
 # === Constants ===
-HOST = "127.0.0.1"
-PORT = 1323
-WORKFLOW_NAME = "deepspeech_0"
+HOST            = "127.0.0.1"       # Serverledge host
+PORT            = 1323              # Serverledge port
+WORKFLOW_NAME   = "deepspeech_0"    # Name of the workflow to invoke
 
-SCALE = 90
+# === Configuration for the sinusoidal workload ===
+SECONDS     = 2700  # Total duration of the test in seconds
+SCALE       = 90    # This is the interval in seconds between one burst of requests and the next
+                    # Each burst corresponds to an exponential distribution of requests
 
-SECONDS     = 2700 # 45 minutes
+BASE_RPS    = 0.05 * SCALE  # Base requests per second in the sinusoidal pattern
+AMPLITUDE   = 0.05 * SCALE  # Amplitude of the sinusoidal pattern
+NOISE_STD   = 0.01 * SCALE  # Standard deviation of the noise added to the sinusoidal pattern
+
 RPS_POINTS  = int(SECONDS / SCALE)
-BASE_RPS    = 0.05 * SCALE
-AMPLITUDE   = 0.05 * SCALE
-NOISE_STD   = 0.01 * SCALE
 
 # List to store request timestamps
 request_timestamps = []
@@ -97,16 +100,13 @@ class SinusoidalUser(HttpUser):
                 continue
 
             num_requests = np.random.poisson(current_rps)
-            # print(f"Second {second}: Current RPS = {current_rps}, Num Requests = {num_requests}")
             if num_requests == 0:
                 sleep(1.0)
                 continue
 
             # Generate exponentially distributed inter-arrival times
             inter_arrival_times = np.random.exponential(1.0 / current_rps, size=num_requests)
-            # print(f"Inter-arrival times: {inter_arrival_times}")
             send_times = np.cumsum(inter_arrival_times)
-            print(f"Send times: {send_times}")
 
             # Clip all to 1 second
             send_times = send_times[send_times < 1.0]
