@@ -87,7 +87,7 @@ class SinusoidalUser(HttpUser):
     def sinusoidal_loop(self):
         headers = {'Content-Type': 'application/json'}
         body = {
-            "params": {"dir": "1234"},
+            "params": {"dir": "example"},
             "CanDoOffloading": False,
             "Async": False
         }

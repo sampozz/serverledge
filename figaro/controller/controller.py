@@ -158,7 +158,11 @@ class Serverledge:
         cpu_utilization, ram_utilization = 0, 0
 
         for container in containers:
-            stats = container.stats(stream=False)
+            try:
+                stats = container.stats(stream=False)
+            except Exception as e:
+                printf(f"Error fetching stats for container {container.name}: {e}")
+                continue
             
             # Extract CPU stats
             cpu_delta = float(stats["cpu_stats"]["cpu_usage"]["total_usage"]) - \
