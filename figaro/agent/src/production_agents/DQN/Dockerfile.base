@@ -1,0 +1,17 @@
+FROM python:3.11.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /base
+
+COPY ./src/production_agents/DQN/requirements.txt ./requirements.txt
+
+RUN pip install --upgrade pip && \
+    pip install -r requirements.txt
+
+COPY ./RL4CC ./RL4CC
+RUN cd RL4CC && pip install .

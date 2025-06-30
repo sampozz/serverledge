@@ -1,84 +1,182 @@
-from ray.rllib.policy import Policy
-from ray.rllib.policy.sample_batch import SampleBatch
-from ray.rllib.utils.replay_buffers.replay_buffer import ReplayBuffer
-from ray.rllib.utils.metrics.learner_info import LearnerInfoBuilder
-from ray.rllib.algorithms.dqn.dqn import calculate_rr_weights
-#from RL4CC.algorithms.algorithm import Algorithm
+import os
 import numpy as np
+import cloudpickle
+from ray.rllib.policy.sample_batch import SampleBatch, MultiAgentBatch, concat_samples
+from ray.rllib.algorithms.algorithm import Algorithm
 
 class ProductionAgentDQN:
-    def __init__(self, checkpoint_path: str, reset_state: bool=True):
-        self.policy = None
-        self.load_checkpoint(checkpoint_path=checkpoint_path, reset_state=reset_state)
-        # Load the algorithm configuration. 
-        # self.algo = Algorithm(
-        #     algo_name="DQN",
-        #     checkpoint_path=checkpoint_path
-        # )
-        # Compute the number of sampling steps when training
-        #_, sample_and_train_weight = calculate_rr_weights(self.algo.algo_config)
-        self.sample_and_train_weight = 1
-        # Initialize the replay buffer
-        self.replay_buffer = ReplayBuffer(
-            #capacity=self.algo.algo_config.replay_buffer_config["capacity"]
-            capacity=360000
-        )
 
-    def load_checkpoint(self, checkpoint_path: str, reset_state: bool=True):
-        self.policy = Policy.from_checkpoint(
-            checkpoint_path).get("default_policy")
+    def __init__(self, checkpoint_path: str, reset_state: bool = False):
+        checkpoint_file = os.path.join(checkpoint_path, "algo_state.pkl")
+
+        with open(checkpoint_file, "rb") as f:
+            algo_state = cloudpickle.load(f)
+
+        algo_cls = algo_state["algorithm_class"]
+        config = algo_state["config"]
+        state = algo_state["state"]
+        
+        config["create_env_on_driver"] = False
+        config["disable_env_checking"] = True
+        config["callbacks"] = None
+        
+        self.algo = algo_cls(config=config)
+        # setup all algorithm components (including replay buffer)
+        self.algo.setup(config=config)
+        self.algo.__setstate__(state)
+        
+        self.online_batch_buffer = []
+        batch_size = self.algo.config["train_batch_size"]
+        self.max_online_buffer_size = batch_size * 4  # 4x the train batch size
+        self.min_online_samples = batch_size // 2  # at least half the train batch size should come from online samples
+
+        if "replay_buffer_state" in algo_state:
+            try:
+                replay_buffer = self.algo.local_replay_buffer
+                old_state = algo_state["replay_buffer_state"]
+                if replay_buffer is not None:
+                    # wrap SampleBatches as MultiAgentBatches
+                    if isinstance(old_state["_storage"], list):
+                        wrapped = []
+                        for sample in old_state["_storage"]:
+                            if isinstance(sample, SampleBatch):
+                                wrapped.append(MultiAgentBatch({"default_policy": sample}, sample.count))
+                            elif isinstance(sample, MultiAgentBatch):
+                                wrapped.append(sample)
+                            else:
+                                raise ValueError(f"Unexpected batch type: {type(sample)}")
+                        old_state["_storage"] = wrapped
+                    replay_buffer.set_state(old_state)
+            except Exception as e:
+                print(f"Warning: Replay buffer could not be restored: {e}")
+
         if reset_state:
-            policy_state = self.policy.get_state()
-            # Reset the last_timestep for the exploration schedule
-            policy_state["_exploration_state"]["last_timestep"] = 0
-            # Reset the global timestep of the policy
-            policy_state['global_timestep'] = 0
-            # Reset the optimizer momentum parameters
-            optimizer_vars = policy_state.get("_optimizer_variables", None)
-            if optimizer_vars:
-                for s in optimizer_vars:
-                    s["state"] = {}
-            # Reset the state of the policy
-            self.policy.set_state(policy_state)
-    
-    def compute_single_action(self, obs, explore):
-        return self.policy.compute_single_action(obs, explore=explore)
+            policy = self.algo.get_policy()
+            state = policy.get_state()
+            state.setdefault("_exploration_state", {})["last_timestep"] = 0
+            state["global_timestep"] = 0
+            for var in state.get("_optimizer_variables", []):
+                var["state"] = {}
+            policy.set_state(state)
+            
+    def set_epsilon(self, epsilon: float, schedule_timesteps: int = 10000):
+        """
+        Fully reset epsilon and its schedule parameters in the policy.
 
-    def training_step(self, new_sample_batch: SampleBatch):
-        # Current timestep
-        cur_ts = self.policy.global_timestep
-        # Global vars (needed to update the LR schedule)
-        global_vars = {"timestep": cur_ts}
-        # Global vars update (for LR scheduler and timesteps)
-        self.policy.on_global_var_update(global_vars)
-        # Store new samples in replay buffer.
-        self.replay_buffer.add(new_sample_batch)
-        # If enough iterations have passed
-        if cur_ts > 0:
-        # Should use this: self.policy.config["num_steps_sampled_before_learning_starts"]:
-            # SGD parameters
-            num_sgd_iter = self.policy.config.get("num_sgd_iter", 1)
-            sgd_minibatch_size = self.policy.config.get("sgd_minibatch_size", self.policy.config["train_batch_size"])
-            # Logger
-            learner_info_builder = LearnerInfoBuilder()
-            # Number of optimization batches
-            num_batches = max(1, self.policy.config["train_batch_size"] // sgd_minibatch_size)
-            # Training loop
-            for i in range(self.sample_and_train_weight):
-                # Sample a training batch
-                train_batch = self.replay_buffer.sample(self.policy.config["train_batch_size"])
-                # Load Sample Batch into buffer
-                self.policy.load_batch_into_buffer(train_batch, buffer_index=0)
-                for _ in range(num_sgd_iter):
-                    permutation = np.random.permutation(num_batches)
-                    for batch_index in range(num_batches):
-                        # Learn on the pre-loaded data in the buffer.
-                        # Note: For minibatch SGD, the data is an offset into
-                        # the pre-loaded entire train batch.
-                        results = self.policy.learn_on_loaded_batch(
-                            permutation[batch_index], buffer_index=0
-                        )
-                        learner_info_builder.add_learn_on_batch_results(results)
-            # Tower reduce and finalize results.
-            learner_info = learner_info_builder.finalize()
-            return learner_info
+        Args:
+            epsilon (float): The epsilon value to use (both initial and current).
+            schedule_timesteps (int): Number of timesteps over which epsilon decays.
+        """
+        
+        policy = self.algo.get_policy()
+        
+        print(f"Current exploration state: {policy.get_state().get('_exploration_state', {})}")
+
+        # Update the epsilon schedule (if it exists)
+        if hasattr(policy.exploration, "epsilon_schedule"):
+            schedule = policy.exploration.epsilon_schedule
+            schedule.schedule_timesteps = schedule_timesteps
+            schedule.initial_p = epsilon
+
+        # Safely modify the internal exploration state
+        state = policy.get_state()
+        exploration_state = state.get("_exploration_state", {})
+        exploration_state["cur_epsilon"] = epsilon
+        exploration_state["last_timestep"] = 0
+        state["_exploration_state"] = exploration_state
+
+        # Set updated state back to the policy
+        policy.set_state(state)
+            
+    @property
+    def policy(self):
+        return self.algo.get_policy()
+
+    def compute_single_action(self, obs: dict, explore: bool = False):
+        """Returns an action using the algorithm (which wraps the policy and exploration logic)."""
+        return self.algo.compute_single_action(obs, explore=explore)
+
+    def training_step(self, new_sample_batch: MultiAgentBatch):
+        # Validate replay buffer exists
+        replay_buffer = self.algo.local_replay_buffer
+        if replay_buffer is None:
+            raise RuntimeError("No local replay buffer found in algorithm.")
+
+        # Add new batch to replay buffer
+        replay_buffer.add(new_sample_batch)
+        
+        default_policy_batch = new_sample_batch.policy_batches.get("default_policy")
+        # if default_policy_batch:
+        #     print("Sample batch sample:")
+        #     for key, value in default_policy_batch.items():
+        #         print(f"{key}: shape={value.shape if hasattr(value, 'shape') else len(value)}, dtype={value.dtype if hasattr(value, 'dtype') else type(value)}")
+
+        # Process online samples
+        default_policy_batch = new_sample_batch.policy_batches.get("default_policy")
+        if not default_policy_batch:
+            return {"trained": False}
+
+        self.online_batch_buffer.append(default_policy_batch)
+        if len(self.online_batch_buffer) > self.max_online_buffer_size:
+            self.online_batch_buffer.pop(0)
+
+        # Combine online batches
+        combined_online_batch = concat_samples(self.online_batch_buffer)
+        online_count = combined_online_batch.count
+
+        # Handle minimum online samples requirement
+        if online_count < self.min_online_samples:
+            # More efficient replication using np.tile for array data
+            replication_factor = int(np.ceil(self.min_online_samples / online_count))
+            replicated_batch = SampleBatch({
+                k: np.tile(v, (replication_factor, *((1,) * (v.ndim - 1))))[:self.min_online_samples]
+                for k, v in combined_online_batch.items()
+            })
+            combined_online_batch = replicated_batch
+
+        # Prepare final training batch
+        train_batch_size = self.algo.config["train_batch_size"]
+        offline_needed = max(0, train_batch_size - combined_online_batch.count)
+
+        try:
+            if offline_needed > 0:
+                offline_batch = replay_buffer.sample(offline_needed).policy_batches.get("default_policy")
+                if not offline_batch:
+                    return {"trained": False}
+                final_batch = concat_samples([combined_online_batch, offline_batch])
+            else:
+                final_batch = combined_online_batch.slice(0, train_batch_size)
+
+            # Validate final batch
+            if final_batch.count != train_batch_size:
+                return {"trained": False}
+
+            # Train and update
+            policy = self.algo.get_policy("default_policy")
+            train_results = policy.learn_on_batch(final_batch)
+            policy.update_target()
+
+            return {"trained": True, **train_results.get("learner_stats", {})}
+
+        except Exception as e:
+            return {"trained": False}
+
+
+    def save_checkpoint(self, path: str):
+        """Save the full algorithm state, including config and replay buffer."""
+        os.makedirs(path, exist_ok=True)
+        algo_state = {
+            "algorithm_class": self.algo.__class__,
+            "config": self.algo.config.to_dict(),
+            "state": self.algo.get_state()
+        }
+
+        replay_buffer = getattr(self.algo, "local_replay_buffer", None)
+        if replay_buffer:
+            algo_state["replay_buffer_state"] = replay_buffer.get_state()
+
+        checkpoint_path = os.path.join(path, "algo_state.pkl")
+        with open(checkpoint_path, "wb") as f:
+            cloudpickle.dump(algo_state, f)
+            
+        return checkpoint_path

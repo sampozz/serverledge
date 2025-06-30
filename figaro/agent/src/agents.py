@@ -4,7 +4,8 @@ import numpy as np
 import random
 
 class MasterAgent:
-    def __init__(self, config: dict, seed: int, comps_permutation):
+    def __init__(self, config: dict, seed: int, comps_permutation, worker_type: str):
+        
         self.seed = seed
         np.random.seed(seed)
         # simulation time management
@@ -16,15 +17,20 @@ class MasterAgent:
         # component demands
         self.demand = np.array(config["demand"])
         # number of components
-        self.total_n_components = len(self.demand)
-        total_permutation = len(comps_permutation)#2**len(self.demand) - 1
-        self.time_threshold = (self.max_time - self.min_time) / total_permutation
-        self.time_threshold_step = (self.max_time - self.min_time) / total_permutation
-        if not config.get("evaluation", False):
-            self.time_threshold = np.random.uniform(
-                (self.max_time - self.min_time) / 4,
-                (self.max_time - self.min_time) / 4 * 3
-            )
+        self.total_n_components = config["n_components"]
+        self.total_permutation = len(comps_permutation)#2**len(self.demand) - 1
+        self.time_threshold = (self.max_time - self.min_time) / self.total_permutation
+        self.time_threshold_step = (self.max_time - self.min_time) / self.total_permutation
+        # if not config.get("evaluation", False):
+        #     self.time_threshold = np.random.uniform(
+        #         (self.max_time - self.min_time) / 4,
+        #         (self.max_time - self.min_time) / 4 * 3
+        #     )
+        
+    def reset(self, worker_type: str):
+        if (worker_type == "evaluation"):
+            self.time_threshold = (self.max_time - self.min_time) / self.total_permutation
+            self.time_threshold_step = (self.max_time - self.min_time) / self.total_permutation
 
     def below_time_threshold(self, t: float) -> bool:
         """
@@ -45,31 +51,42 @@ class MasterAgent:
         active_comps = []
         if len(remained_permutations) == 0:
             remained_permutations = copy.deepcopy(permutations)
-        y = random.choice(remained_permutations)
-        idx = remained_permutations.index(y)
+        random_choice = random.choice(remained_permutations)
+        idx = remained_permutations.index(random_choice)
         remained_permutations.pop(idx)
-        for idx, i in enumerate(y):
-            if i == 1:
-                active_comps.append(idx)
-        return np.array(active_comps), remained_permutations
+        active_comps = random_choice
+        choice_index = permutations.index(random_choice)
+        return np.array(active_comps), remained_permutations, choice_index
 
     def get_components(self, t: float, worker_type, remained_permutations, permutations, current_components) -> np.array:
         """
         Return the list of components indices to manage according to the current
         time value
         """
+        current_configuration_index = 0
         if worker_type == "training":
-            active_comps, remained_permutations = self.choose_component_set(remained_permutations, permutations)
-            return active_comps, remained_permutations
-        else:
+            active_comps, remained_permutations, current_configuration_index = self.choose_component_set(remained_permutations, permutations)
+            return active_comps, remained_permutations, current_configuration_index
+        elif worker_type == "evaluation":
+            active_comps = []
+            if len(remained_permutations) == 0:
+                remained_permutations = copy.deepcopy(permutations)
+            active_comps = remained_permutations[0]
+            remained_permutations.pop(0)
+            current_configuration_index = permutations.index(active_comps)
+            return np.array(active_comps), remained_permutations, current_configuration_index
+            
+        else: #should never come here, leaving just because of legacy
             if t < self.time_threshold:
-                return current_components, remained_permutations
+                current_configuration_index = permutations.index(current_components)
+                return current_components, remained_permutations, current_configuration_index
             else:
                 active_comps, remained_permutations = self.choose_component_set(remained_permutations, permutations)
                 self.time_threshold += self.time_threshold_step
                 if self.time_threshold > self.max_time:
                     self.time_threshold = self.time_threshold_step
-                return active_comps, remained_permutations
+                current_configuration_index = permutations.index(active_comps)
+                return np.array(active_comps), remained_permutations, current_configuration_index
 
     def get_components_demand(self, components: np.array) -> np.array:
         """

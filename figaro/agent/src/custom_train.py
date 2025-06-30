@@ -1,210 +1,138 @@
 import os
 import json
-import pdb
 
-import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 from RL4CC.experiments.train_with_plots import TrainingExperimentWithPlots
-from src.space4air import execute_space4air, perform_space4air_comparison, plot_space4air_comparison
+from src.space4air import Space4Air
 
 class CustomTrainingExperiment(TrainingExperimentWithPlots):
     def __init__(self, config):
         super().__init__(config)
+        if self.logdir:
+            self.env_config['logdir'] = self.logdir
+            
+        if self.exp_config.get('experiment_general_output_folder', False):
+            self.env_config['experiment_general_output_folder'] = self.exp_config['experiment_general_output_folder']
+            
         if self.env_config is not None:
             self.space4air_agent = self.env_config.get("space4air_agent", False)
             self.compare_to_space4air = self.env_config.get("compare_to_space4air", False)
+            self.state_has_to_be_normalized = self.env_config.get("state_has_to_be_normalized", False)
         else:
             self.space4air_agent = False
             self.compare_to_space4air = False
+            self.state_has_to_be_normalized = False
+
+        if self.env_config.get('compare_to_space4air', False):
+            self.space4air = Space4Air()
+            self.space4air_choices = {}
+            self.run_space4air()
+            self.space4air_choices = self.space4air.get_space4air_choices()
+            self.env_config['space4air_choices'] = self.space4air_choices
+            compatible_configurations = self.env_config.get("compatible_configurations", [[0]])
+            self.ray_config['evaluation']['evaluation_duration_per_worker'] = len(compatible_configurations)
+        
 
     def run(self):
         algorithm = super().run()
-        if not self.space4air_agent and self.compare_to_space4air:
-            self.run_space4air_comparison()
         return algorithm
     
     def on_iteration_start(self, algo, iteration):
-        print('CUSTOM TRAIN: on_iteration_start')
+        pass
     
-    def execute_before_training(self):
-        print('CUSTOM TRAIN: execute_before_training')
-        if self.env_config.get('compare_to_space4air', False):
-            self.run_space4air()
+    def execute_before_training(self, algo):
+        super().execute_before_training(algo)
     
     def manage_custom_metrics_keys(self):
         if 'current_time' in self.custom_metrics_keys:
             self.custom_metrics_keys.remove('current_time')
         if 'worker_index' in self.custom_metrics_keys:
             self.custom_metrics_keys.remove('worker_index')
-        
-    def plot(self):
-        if self.space4air_agent:
-            pass
-        else:
-            super().plot()
-            print('CUSTOM TRAIN: Plotting custom metrics')
-            custom_metrics_folder = os.path.join(self.logdir, "custom_metrics")
-            if os.path.exists(custom_metrics_folder):
-                custom_metrics_files = os.listdir(custom_metrics_folder)
-                custom_metrics_files.sort()
-                if len(custom_metrics_files) > 0:
-                    first_iteration = json.load(open(os.path.join(custom_metrics_folder, custom_metrics_files[0])))
-                    last_iteration = json.load(open(os.path.join(custom_metrics_folder, custom_metrics_files[-1])))
-                    middle_iteration = json.load(open(os.path.join(custom_metrics_folder, custom_metrics_files[len(custom_metrics_files)//2])))
-                    os.makedirs(os.path.join(self.plots_folder, 'training'), exist_ok=True)
-                    for key in first_iteration.keys():
-                        if key in last_iteration.keys() and key in middle_iteration.keys():
-                            if isinstance(first_iteration[key][0], list) and len(first_iteration[key][0]) > 1:
-                                num_columns = len(first_iteration[key][0])
-                                fig, axs = plt.subplots(3, num_columns, figsize=(15, 10))
-                                fig.suptitle(f'{key} Iterations Comparison', fontsize=16)
-                                row_titles = ['First Iteration', 'Middle Iteration', 'Last Iteration']
-                                for i in range(num_columns):
-                                    axs[0, i].plot([x[i] for x in first_iteration[key]])
-                                    if i == 0:
-                                        axs[0, i].set_ylabel(row_titles[0], rotation=0, labelpad=40, fontsize=12)
-                                    axs[0, i].set_title(f'Component {i+1}')
-                                    
-                                    axs[1, i].plot([x[i] for x in middle_iteration[key]])
-                                    if i == 0:
-                                        axs[1, i].set_ylabel(row_titles[1], rotation=0, labelpad=40, fontsize=12)
-                                    axs[1, i].set_title(f'Component {i+1}')
-                                    
-                                    axs[2, i].plot([x[i] for x in last_iteration[key]])
-                                    if i == 0:
-                                        axs[2, i].set_ylabel(row_titles[2], rotation=0, labelpad=40, fontsize=12)
-                                    axs[2, i].set_title(f'Component {i+1}')
-                            else:
-                                if isinstance(first_iteration[key][0], list) and len(first_iteration[key][0]) == 1:
-                                    first_iteration[key] = np.array(first_iteration[key]).flatten()
-                                    middle_iteration[key] = np.array(middle_iteration[key]).flatten()
-                                    last_iteration[key] = np.array(last_iteration[key]).flatten()
-                                plt.figure(f'{key}', figsize=(15, 15))
-                                plt.subplot(3, 1, 1)
-                                plt.plot(first_iteration[key])
-                                plt.title(f'{key} first iteration')
-                                plt.subplot(3, 1, 2)
-                                plt.plot(middle_iteration[key])
-                                plt.title(f'{key} middle iteration')
-                                plt.subplot(3, 1, 3)
-                                plt.plot(last_iteration[key])
-                                plt.title(f'{key} last iteration')
 
-                            plt.tight_layout(rect=[0, 0, 1, 0.96])
-                            plt.savefig(os.path.join(self.plots_folder, 'training', f'{key}.png'), bbox_inches='tight', dpi=100)
-                            plt.close()
-            else:
-                print('CUSTOM TRAIN: No custom metrics folder found')
-        #     if len(self.evaluations) != 0:
-        #         #plot last workload and last n_instances in the same plot, one on the y label and the other on the right y label
-        #         if 'env_runners' in self.evaluations[-1].keys() and 'custom_metrics' in self.evaluations[-1]['env_runners'].keys():
-        #             last_workload = self.evaluations[-1]['env_runners']['custom_metrics']['workload']
-        #             last_n_instances = self.evaluations[-1]['env_runners']['custom_metrics']['n_instances']
-        #         elif 'custom_metrics' in self.evaluations[-1].keys():
-        #             last_workload = self.evaluations[-1]['custom_metrics']['workload']
-        #             last_n_instances = self.evaluations[-1]['custom_metrics']['n_instances']
-        #         else:
-        #             raise Exception("CUSTOM TRAIN: Could not find custom_metrics in the last evaluation")
-        #         if isinstance(last_workload, list):
-        #             last_workload = np.array(last_workload).flatten()
-        #         if isinstance(last_n_instances, list):
-        #             last_n_instances = np.array(last_n_instances).flatten()
 
-        #         percentage_violations = []
-        #         for eval in self.evaluations:
-        #             if 'env_runners' in eval.keys() and 'custom_metrics' in eval['env_runners'].keys():
-        #                 custom_metrics = eval['env_runners']['custom_metrics']
-        #             elif 'custom_metrics' in eval.keys():
-        #                 custom_metrics = eval['custom_metrics']
-                        
-        #             percentage_violations.append((custom_metrics['total_violations'][0][-1]/len(custom_metrics['total_violations'][0]))*100)
+    def plot_results(self, result):
+        super().plot_results(result)
+        space4air_vm_choices = result.get('evaluation', {}).get('custom_metrics', {}).get('space4air_vm_choice', None)
+        if not self.space4air_agent and self.compare_to_space4air and space4air_vm_choices and (len(space4air_vm_choices) > 0) is not None:
+            self.compare_to_space4air_plot(result, space4air_vm_choices)
 
-        #         plt.figure('percentage_violations', figsize=(30,10))
-        #         plt.plot(percentage_violations)
-        #         plt.title('percentage_violations')
-        #         plt.savefig(os.path.join(self.plots_folder, 'percentage_violations.png'))
-        #         plt.close()
-
-        #         fig, ax1 = plt.subplots()
-
-        #         color = 'tab:red'
-        #         ax1.set_xlabel('time')
-        #         ax1.set_ylabel('workload', color=color)
-        #         ax1.plot(last_workload, color=color)
-
-        #         ax2 = ax1.twinx()
-        #         color = 'tab:blue'
-        #         ax2.set_ylabel('n_instances', color=color)
-        #         ax2.plot(last_n_instances, color=color)
-
-        #         #make them share same y lim
-        #         ax1.set_ylim([0, round(max(max(last_workload), max(last_n_instances)), 0)])
-        #         ax2.set_ylim([0, round(max(max(last_workload), max(last_n_instances)), 0)])
-
-        #         fig.tight_layout()
-        #         plt.title('workload and n_instances')
-        #         plt.savefig(os.path.join(self.plots_folder, 'workload_n_instances_last_evaluation.png'))
-        #         plt.close()
-
-                    
-        #         if 'workload' in self.custom_metrics_keys:
-        #             self.custom_metrics_keys.remove('workload')
-        #         if 'n_instances' in self.custom_metrics_keys:
-        #             self.custom_metrics_keys.remove('n_instances')
-        #         # create a plot for each custom metric
-        #         for key in self.custom_metrics_keys:
-        #             if isinstance(self.merged_evaluations[key][0], list):
-        #                 if isinstance(self.merged_evaluations[key][0][0], list) or isinstance(self.merged_evaluations[key][0][0], np.ndarray) or (isinstance(self.merged_evaluations[key][0][0], int)) or (isinstance(self.merged_evaluations[key][0][0], float)):
-        #                     values = np.array(self.merged_evaluations[key]).flatten()
-        #                 else:
-        #                     print('Error: unknown type')
-        #             else:
-        #                 print(f"Error: custom metric {key} is not a list of lists")
-
-        #             # transform values so that we print the moving average of the last len(values) / 20 values
-        #             values = pd.Series(values)
-        #             values = values.rolling(window=int(len(values) / 20)).mean()
-        #             values = values.dropna().values
-        #             plt.figure('Agent vs Space4Air', figsize=(50,10))
-        #             plt.plot(values, label=key)
-        #             plt.xlabel('time')
-        #             plt.ylabel(key)
-        #             plt.legend()
-        #             plt.title(key)
-        #             plt.savefig(os.path.join(self.plots_folder, f'{key}.png'))
-        #             plt.close()
+        return
 
     def run_space4air(self):
-
-        print('CUSTOM TRAIN: run_space4air')
-
         self.logdir = os.path.normpath(self.logdir)
         folder_path, experiment_name = self.logdir.rsplit("/", 1)
-
-        with open(f"{folder_path}/{experiment_name}/complete_config/ray_config.json") as f:
-            config = json.load(f)
-
-        demand = config["environment"]["env_config"]["demand"]
-        threshold_ratio = config["environment"]["env_config"]["min_threshold_ratio"]
-
-        threshold = [round((d * threshold_ratio), 2) for d in demand]
-
-        min_workload = config["environment"]["env_config"]["min_workload"]
-        max_workload = config["environment"]["env_config"]["max_workload"]
-
-        #if not os.path.exists(f"{folder_path}/{experiment_name}/space4air"):
-        #    space4air_execution_status = execute_space4air(folder_path=folder_path, experiment_name=experiment_name, demand=demand, threshold=threshold, min_workload=min_workload, max_workload=max_workload, space4air_systemfile=config["environment"]["env_config"].get('space4air_systemfile', None))
         if not os.path.exists(f"{folder_path}/space4air"):
-            space4air_execution_status = execute_space4air(folder_path=folder_path, experiment_name=experiment_name, demand=demand, threshold=threshold, min_workload=min_workload, max_workload=max_workload, space4air_systemfile=config["environment"]["env_config"].get('space4air_systemfile', None))
+            self.space4air.execute_space4air(folder_path=folder_path, experiment_name=experiment_name, config=self.env_config)
 
-    def run_space4air_comparison(self):
-        if self.logdir.endswith("/"):
-            log=self.logdir[:-1]
+    def compare_to_space4air_plot(self, result, space4air_vm_choices):
+        workload = result.get('evaluation', {}).get('custom_metrics', {}).get('workload', None)
+        episodes_this_iter = result.get('evaluation', {}).get('episodes_this_iter', None)
+        agent_choices = result.get('evaluation', {}).get('custom_metrics', {}).get('n_instances', None)
+        if agent_choices is None or len(agent_choices) == 0 or workload is None or len(workload) == 0:
+            print('CUSTOM TRAIN: No agent choices found or workload in evaluation custom_metrics')
+            return
+        elif episodes_this_iter is None or episodes_this_iter == 0:
+            print('CUSTOM TRAIN: No episodes_this_iter found in evaluation')
+            return
         else:
-            log = self.logdir
-        folder_path, experiment_name = log.rsplit("/", 1)
+            for configuration_id in range(episodes_this_iter):
+                current_space4air_vm_choices = space4air_vm_choices[configuration_id] #while choosing the evaluations in agents.py, I always go in order
+                if isinstance(workload[configuration_id], (list, tuple)):
+                    if isinstance(workload[configuration_id][0], (list, tuple)):
+                        if self.state_has_to_be_normalized:
+                            _workload = [
+                                [float(x*self.env_config.get('max_workload', 10)) for x in sublist]
+                                for sublist in workload[configuration_id]
+                            ]
+                        else:
+                            _workload = [
+                                [float(x) for x in sublist]
+                                for sublist in workload[configuration_id]
+                            ]
+                    else:
+                        if self.state_has_to_be_normalized:
+                            _workload = [[float(x*self.env_config.get('max_workload', 10)) for x in sublist] for sublist in workload]
+                        else:
+                            _workload = [
+                                [float(x) for x in sublist]
+                                for sublist in workload
+                            ]
+                else:
+                    if self.state_has_to_be_normalized:
+                        _workload = [float(x*self.env_config.get('max_workload', 10)) for x in workload]
+                    else:
+                        _workload = [float(x) for x in workload]
+                if self.state_has_to_be_normalized:
+                    _agent_choices = [int(x[0]*self.env_config.get('max_n_instances', 100)) if isinstance(x, (list, tuple)) else int(x*self.env_config.get('max_n_instances', 100)) for x in agent_choices[configuration_id]]
+                else:
+                    _agent_choices = [int(x[0]) if isinstance(x, (list, tuple)) else int(x) for x in agent_choices[configuration_id]]
 
-        n_instances_agent, n_instances_s4air, workloads = perform_space4air_comparison(folder_path=folder_path, experiment_name=experiment_name, total_eval=1)
+                current_folder = os.path.join(self.plots_folder, "evaluation"+str(result["training_iteration"]), str(configuration_id))
 
-        plot_space4air_comparison(n_instances_agent, n_instances_s4air, workloads, folder_path=folder_path, experiment_name=experiment_name)
+                self.space4air.plot_space4air_comparison(n_instances_agent=_agent_choices, n_instances_s4air=current_space4air_vm_choices, workload=_workload, folder_path=current_folder, max_n_instances=self.env_config.get('max_n_instances', 100))
+
+    def define_stopping_criteria(self):
+        """
+        Define a `stop()` function to check whether the training loop should be
+        terminated, according to the stopping criteria specified in the experiment
+        configuration file
+        """
+        # list possible stopping criteria
+        stop_on_max_iter = None
+        episode_reward_mean = None
+        s4air_difference_threshold = None
+        valid_violations = False
+        for key, value in self.exp_config["stopping_criteria"].items():
+            if key == "max_iterations":
+                max_iterations = value
+            elif  key == "episode_reward_mean":
+                episode_reward_mean = value
+            elif key == "s4air_difference":
+                s4air_difference_threshold = value
+            else:
+                raise NotImplementedError(
+                f"Stopping criterion `{key}` is not supported"
+                )
+        stop_criterion = lambda it, reward, s4air_differences, valid_violations: it > max_iterations or reward > episode_reward_mean or (s4air_differences is not None and valid_violations and len(s4air_differences) >= 5 and all(s4air_differences))
+        # stop_criterion = lambda it, reward, s4air_differences: it > max_iterations
+        self.stop = stop_criterion

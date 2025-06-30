@@ -4,287 +4,193 @@ import subprocess
 from time import sleep
 import matplotlib.pyplot as plt
 import numpy as np
-import pdb
-PRECISION = 1
-SPACE4AIR_OUTPUT_FOLDER = "/home/damommio/figaro-on-rl4cc/output_nas/space4air/"
-FOLDER_NAME = {"0": "A", "1": "B", "2": "C", "3":"D"}
-Max_w=10
-Min_w=0
-def get_precision():
-    return PRECISION
+import random
 
-def execute_space4air(experiment_name = "", folder_path = "", demand = [0], threshold = [0], min_workload = 0, max_workload = 0, space4air_systemfile = "space4air/SystemFile.json"):
-    
-    step = 10**(-PRECISION)
+class Space4Air:
 
-    print('space4air_systemfile', space4air_systemfile)
+    def __init__(self):
+        self.space4air_choices = {}
+        self.PRECISION = 3
+        self.SPACE4AIR_SPLIT_SYSTEMFILES_FOLDER = "/home/cavadini/figaro-on-rl4cc/split_systemfile/systemfiles"
+        self.SPACE4AIR_TEMPLATES_FOLDER = "/home/cavadini/figaro-on-rl4cc/space4air"
+        self.SPACE4AIR_OUTPUT_FOLDER = "/home/cavadini/figaro-on-rl4cc/output_nas/space4air/"
+        # FOLDER_NAME = {"0": "A", "1": "B", "2": "C", "3":"D"}
 
-    if not space4air_systemfile:
-        space4air_systemfile = "space4air/SystemFile.json"
-        with open(space4air_systemfile, "r") as f:
-            systemfile = json.load(f)
 
-        for d_index, d_value in enumerate(demand):
-            systemfile['Performance']['c'+str(d_index+1)]['h1']['VM1']['demand'] = d_value
-        for t_index, t_value in enumerate(threshold):
-            systemfile['LocalConstraints']['c'+str(t_index+1)]['local_res_time'] = t_value
-    else:
-        if len(space4air_systemfile) > 0:
-            os.makedirs(f"{folder_path}/{experiment_name}/space4air/input", exist_ok=True)
-            os.makedirs(f"{folder_path}/{experiment_name}/space4air/output", exist_ok=True)
+    def get_precision(self):
+        return self.PRECISION
 
-            for file in space4air_systemfile:
+    def execute_space4air(self, folder_path = "", experiment_name = "", config = {}):
 
-                with open(file, "r") as f:
+        min_workload=config.get("min_workload", 0)
+        max_workload=config.get("max_workload", 100)
+        computational_layer = config.get("computational_layer", "computationalLayer1")
+        computational_layer_id = config.get("computational_layer_id", 1)
+        compatible_configurations = config.get("compatible_configurations", [[0]])
+
+        os.makedirs(f"{folder_path}/{experiment_name}/space4air/input", exist_ok=True)
+        os.makedirs(f"{folder_path}/{experiment_name}/space4air/output", exist_ok=True)
+
+        demands = config.get("demand")
+        if config.get("threshold_ratio", None) is not None:
+            threshold_ratio = config.get("threshold_ratio")
+            thresholds = [round((demands[i] * threshold_ratio[i]), self.PRECISION) for i in range(len(threshold_ratio))]
+        else:
+            threshold_ratio = config.get("min_threshold_ratio")
+            thresholds = [round((d * threshold_ratio), self.PRECISION) for d in demands]
+
+        print('space4air: compatible_configurations:', compatible_configurations, flush=True)
+        for configuration in compatible_configurations:
+
+            print(f"running space4air for configuration {configuration}", flush=True)
+
+            template_input_s4air = f"{self.SPACE4AIR_TEMPLATES_FOLDER}/input_s4air.json"
+            with open(template_input_s4air, "r") as f:
+                input_s4air = json.load(f)
+
+            configuration_to_string = ""
+            folder_name = ""
+            s4air_output_folder = ""
+            real_component_names = config.get("real_component_names", [])
+            if not config.get('start_from_systemfile', False):
+                # configuration_to_string = "_".join([str(c) for c in configuration])
+                configuration_to_string = "-".join([real_component_names[c] for c in configuration])
+                folder_name = f"{computational_layer_id}_{configuration_to_string}"
+                s4air_output_folder = f"{folder_path}/{experiment_name}/space4air/output/{folder_name}"
+                os.makedirs(s4air_output_folder, exist_ok=True)
+                
+                template_systemfile = f"{self.SPACE4AIR_TEMPLATES_FOLDER}/system_files/{folder_name}.json"
+                with open(template_systemfile, "r") as f:
                     systemfile = json.load(f)
-                name = file.rsplit("/", 1)[1].rsplit(".", 1)[0]
-                if os.path.exists(f"{SPACE4AIR_OUTPUT_FOLDER}/output/{name}"):
-                    print(f"copying space4air output files from {SPACE4AIR_OUTPUT_FOLDER}/output/{name}/ to {folder_path}/{experiment_name}/space4air/output/{name}/")
-                    subprocess_status = subprocess.check_call(["cp", "-r", f"{SPACE4AIR_OUTPUT_FOLDER}/output/{name}/.", f"{folder_path}/{experiment_name}/space4air/output/{name}/"])
-                else:
-                    #os.makedirs(f"{SPACE4AIR_OUTPUT_FOLDER}/output/{name}", exist_ok=True)
-                    #os.makedirs(f"{folder_path}/{experiment_name}/space4air/output/{name}", exist_ok=True)
-
-                    with open("/home/damommio/figaro-on-rl4cc/space4air/input_s4air.json", "r") as f:
-                        input_s4air = json.load(f)
-
-                    input_s4air['LambdaBound'] = {
-                            'start': min_workload,
-                            'end': max_workload,
-                            'step': step
-                        }
-
-                    input_s4air['ConfigFiles'] = [f"/mnt/{experiment_name}/space4air/input/SystemFile_{name}.json"]
-
-                    with open(f"{folder_path}/{experiment_name}/space4air/input/SystemFile_{name}.json", "w+") as f:
-                        f.write(json.dumps(systemfile, indent=4))
-
-                    with open(f"{folder_path}/{experiment_name}/space4air/input/input_s4air.json", "w+") as f:
-                        f.write(json.dumps(input_s4air, indent=4))
-
-                    if os.path.exists(f"{SPACE4AIR_OUTPUT_FOLDER}/output/{name}"):
-                        print(f"copying space4air output files from {SPACE4AIR_OUTPUT_FOLDER}min{min_workload}_max{max_workload}_step{step}_threshold{threshold}_precision{PRECISION}/ to {folder_path}/{experiment_name}/space4air/output/")
-                        subprocess_status = subprocess.check_call(["cp", "-r", f"{SPACE4AIR_OUTPUT_FOLDER}/output/{name}/.", f"{folder_path}/{experiment_name}/space4air/output/{name}/"])
-                    else:
-                        print(f"looked for space4air files in folder {SPACE4AIR_OUTPUT_FOLDER}min{min_workload}_max{max_workload}_step{step}_threshold{threshold}_precision{PRECISION}/")
-                        print(f"running space4air for {folder_path}")
-                        print(f"executing: bash start_space4air.sh {experiment_name} space4airtest {folder_path}")
-                        os.makedirs(f"{folder_path}/{experiment_name}/space4air/output/{name}", exist_ok=True)
-                        subprocess_status = subprocess.check_call(["bash", "start_space4air.sh", experiment_name, "space4airtest", folder_path, name])
-
-                    number_of_expected_files = ((max_workload - min_workload) * (10**PRECISION)) + 1
-                    while not (len(os.listdir(f'{folder_path}/{experiment_name}/space4air/output/{name}')) == number_of_expected_files):
-                        print(f"waiting for space4air to finish, currently {len(os.listdir(f'{folder_path}/{experiment_name}/space4air/output/{name}'))} files out of {number_of_expected_files}")
-                        sleep(2)
-                    if not os.path.exists(f"{SPACE4AIR_OUTPUT_FOLDER}/output/{name}"):
-                        os.makedirs(f"{SPACE4AIR_OUTPUT_FOLDER}/output/{name}", exist_ok=True)
-                        subprocess_status = subprocess.check_call(["cp", "-r",
-                                                                   f"{folder_path}/{experiment_name}/space4air/output/{name}/.",
-                                                                   f"{SPACE4AIR_OUTPUT_FOLDER}/output/{name}"])
-
-
-
-
-    return subprocess_status
-
-    # subprocess.check_call(["mv", f"./output/{folder}/space4air", f"./{folder_path}/output/{folder}/space4air_output/{threshold}"])
-
-def perform_space4air_comparison(folder_path = "", experiment_name = "", total_eval=1):
-    total_evals_n_instances_agent = []
-    total_evals_n_instances_s4air = []
-    total_evals_workloads = []
-    with open(f"{folder_path}/{experiment_name}/evaluations.json", "r") as f:
-        evaluations = json.load(f)['evaluations']
-    print("len(evaluations): " + str(len(evaluations)))
-    for i in range(len(evaluations)):
-        if 'env_runners' in evaluations[i].keys() and 'custom_metrics' in evaluations[i]['env_runners'].keys():
-            evaluation = evaluations[i]['env_runners']['custom_metrics']
-        elif 'sampler_results' in evaluations[i].keys() and 'custom_metrics' in evaluations[i]['sampler_results'].keys():
-            evaluation = evaluations[i]['sampler_results']['custom_metrics']
-        elif 'custom_metrics' in evaluations[i].keys():
-            evaluation = evaluations[i]['custom_metrics']
-        else:
-            raise Exception("SPACE4AIR: Could not find custom_metrics in the last evaluation")
-        if 'n_instances' in evaluation.keys():
-            n_instances_agent = [int(n) if (isinstance(n, int) or isinstance(n, float)) else int(n[0]) for n in
-                                 evaluation['n_instances'][0]]
-        else:
-            n_instances_agent = [int(n) if (isinstance(n, int) or isinstance(n, float)) else int(n[0]) for n in
-                                 evaluation['action'][0]]
-            # removing offsets to realign the n_instances seen by the agent before and after the action
-            # remove first element, as it is the initial number of instances
-        n_instances_agent = n_instances_agent[1:]
-        workloads = evaluation['workloads'][0]
-        input_workloads = evaluation['workload'][0]
-        orginal_workloads = []
-        rounded_workloads = []
-        for workload in input_workloads:
-
-            orgi_w = workload[0]*(Max_w - Min_w) + Min_w
-            rounded_workload = round(orgi_w, PRECISION)
-            orginal_workloads.append(orgi_w)
-            rounded_workloads.append(rounded_workload)
-
-        # remove last element to have same length as n_instances
-        input_workloads = orginal_workloads[:-1]
-        rounded_input_workloads = rounded_workloads[:-1]
-        #load all space4air results
-        chosen_vm_s4air = {}
-
-        for rounded_input_workload, input_workload, workload in zip(rounded_input_workloads, input_workloads, workloads):
-            name = ""
-            active_comps = []
-            if isinstance(workload, float):
-                workload = [workload]
-
-            for idx, j in enumerate(workload):
-                if j > 0:
-                    active_comps.append(idx)
-            for j in active_comps:
-                name += FOLDER_NAME[str(j)]
-
-            space4air_output_files = os.listdir(f"{folder_path}/{experiment_name}/space4air/output/{name}")
-            if f"Lambda_{rounded_input_workload}.json" in space4air_output_files:
-                with open(f"{folder_path}/{experiment_name}/space4air/output/{name}/Lambda_{rounded_input_workload}.json", "r") as f:
-                    s4air_result = json.load(f)
-                    workload_value = round(float(s4air_result["Lambda"]), PRECISION)
-                    chosen_vm_s4air[input_workload] = \
-                    s4air_result["components"]["c1"]["s1"]["h1"]["computationalLayer1"]["VM1"]["number"]
+        
+                if "CloudResources" in systemfile and systemfile["CloudResources"]:
+                    resources = systemfile["CloudResources"]
+                if "EdgeResources" in systemfile and systemfile["EdgeResources"]:
+                    resources = systemfile["EdgeResources"]
+                
+                computational_layer = config.get("computational_layer", "computationalLayer1")
+                computational_layer_resources = resources[computational_layer]
+                resource_name = list(computational_layer_resources.keys())[0]
+                computational_layer_resources[resource_name]["number"] = config["max_n_instances"]
+                computational_layer_resources[resource_name]["cost"] = config["machine_cost"]
+                for component_index in configuration:
+                    try:
+                        real_component_name = real_component_names[component_index]
+                    except IndexError:
+                        real_component_name = "c" + str(component_index)
+                    systemfile['Performance'][real_component_name]['h1'][resource_name]['demand'] = demands[component_index]
+                    systemfile['LocalConstraints'][real_component_name]['local_res_time'] = thresholds[component_index]
             else:
-                print("Error")
+                #TODO: fix this mismatch in naming convention
+                configuration_to_string = "-".join([real_component_names[c] for c in configuration])
+                folder_name = f"{computational_layer}_{configuration_to_string}"
+                s4air_output_folder = f"{folder_path}/{experiment_name}/space4air/output/{folder_name}"
+                os.makedirs(s4air_output_folder, exist_ok=True)
+                
+                experiment_general_output_folder = config.get("experiment_general_output_folder", None)
+                if not experiment_general_output_folder:
+                    raise ValueError("Missing experiment_general_output_folder in env_config")
+                space4air_split_systemfiles_folder = experiment_general_output_folder + '/systemfiles'
+                print('opening systemfile:', f"{space4air_split_systemfiles_folder}/systemfile_{folder_name}.json", flush=True)
+                with open(f"{space4air_split_systemfiles_folder}/systemfile_{folder_name}.json", "r") as f:
+                    systemfile = json.load(f)
+                    
+            input_s4air['LambdaBound'] = {
+                    'start': config["min_workload"],
+                    'end': config["max_workload"]+2*(10**(-self.PRECISION)),
+                    'step': 10**(-self.PRECISION)
+                }
+            input_s4air['ConfigFiles'] = [f"/mnt/{experiment_name}/space4air/input/SystemFile_{folder_name}.json"]
 
-            '''for space4air_output_file in space4air_output_files:
-                with open(f"{folder_path}/{experiment_name}/space4air/output/{name}/{space4air_output_file}", "r") as f:
+            #saving files
+            with open(f"{folder_path}/{experiment_name}/space4air/input/SystemFile_{folder_name}.json", "w+") as f:
+                f.write(json.dumps(systemfile, indent=4))
+            with open(f"{folder_path}/{experiment_name}/space4air/input/input_s4air.json", "w+") as f:
+                f.write(json.dumps(input_s4air, indent=4))
+
+            random_container_name = "space4airfigarorl4cc" + str(random.randint(0, 100000))
+            cmd = ['bash', 'start_space4air.sh', experiment_name, random_container_name, folder_path, f"{folder_name}"]
+            subprocess.run(cmd)
+            remove_container_cmd = ['docker', 'rm', '-f', random_container_name]
+            subprocess.run(remove_container_cmd)
+
+            self.space4air_choices[configuration_to_string] = {}
+            space4air_choice = {}
+            for workload in np.arange(min_workload, max_workload+(2*(10**-self.PRECISION)), (10**-self.PRECISION)):
+                workload = round(workload, self.PRECISION)
+                with open(f"{s4air_output_folder}/Lambda_{workload}.json", "r") as f:
                     s4air_result = json.load(f)
-                    workload_value = round(float(s4air_result["Lambda"]), PRECISION)
-                    chosen_vm_s4air[str(workload)] = s4air_result["components"]["c1"]["s1"]["h1"]["computationalLayer1"]["VM1"]["number"]'''
+                    if s4air_result["feasible"]:
+                        if not config.get('start_from_systemfile', False):
+                            space4air_choice[workload] = s4air_result["components"]["c0"]["s1"]["h1"]["computationalLayer1"]["VM1"]["number"]
+                        else:
+                            #TODO: fix with the right names
+                            first_component_name = list(s4air_result["components"].keys())[0]
+                            computational_layer_name = list(s4air_result["components"][first_component_name]["s1"]["h1"].keys())[0]
+                            resource_name = list(s4air_result["components"][first_component_name]["s1"]["h1"][computational_layer_name].keys())[0]
+                            space4air_choice[workload] = s4air_result["components"][first_component_name]["s1"]["h1"][computational_layer_name][resource_name]["number"]
+                    else:
+                        space4air_choice[workload] = np.inf
+                        
+            self.space4air_choices[configuration_to_string] = space4air_choice
 
-        n_instances_s4air = []
-        for input_workload in input_workloads:
-            n_instances_s4air.append(chosen_vm_s4air[input_workload])
-        #pdb.set_trace()
-        total_evals_n_instances_agent.append(n_instances_agent)
-        total_evals_n_instances_s4air.append(n_instances_s4air)
-        total_evals_workloads.append(input_workloads)
+    def get_space4air_choices(self):
+        return self.space4air_choices
 
-    return total_evals_n_instances_agent, total_evals_n_instances_s4air, total_evals_workloads
-            
-
-def plot_space4air_comparison(total_evals_n_instances_agent, total_evals_n_instances_s4air, total_evals_workloads, folder_path = "", experiment_name = ""):
-    #plot the comparison in the same plot, together with workload
-    eval=0
-    diff_ave = []
-    for n_instances_agent, n_instances_s4air, workloads in zip(total_evals_n_instances_agent, total_evals_n_instances_s4air, total_evals_workloads):
-        diff_ave.append(np.abs(sum(n_instances_agent)/len(n_instances_agent)-sum(n_instances_s4air)/len(n_instances_s4air)))
-        eval_folder = "evaluation"+str(eval+1)
-        if not os.path.exists(f"{folder_path}/{experiment_name}/plots/{eval_folder}"):
-            os.makedirs(f"{folder_path}/{experiment_name}/plots/{eval_folder}")
-        plt.figure('Agent vs Space4Air', figsize=(10,10))
-        plt.plot(n_instances_agent, label="Agent", color="blue")
-        plt.plot(n_instances_s4air, label="Space4Air", color="orange")
-        plt.plot(workloads, label="Workload", color="red", linestyle="--")
-        plt.ylabel('Number of VMs')
-        plt.xlabel('Time (ms)')
-        plt.legend(loc="upper left")
-        plt.title(f'Agent vs Space4Air')
-        plt.savefig(f"{folder_path}/{experiment_name}/plots/{eval_folder}/space4air_comparison_last.png",
-            format = "png",
-            bbox_inches = "tight"
-        )
-        plt.close()
-
-        print('SPACE4AIR + agent plot saved')
-
-        #plot the difference between the number of instances
+    def plot_space4air_comparison(self, n_instances_agent = [], n_instances_s4air = [], workload = [], folder_path = "", max_n_instances = 100):
         difference = []
         for i in range(len(n_instances_agent)):
-            difference.append(n_instances_s4air[i] - n_instances_agent[i])
+            if isinstance(n_instances_s4air, (list, np.ndarray)):
+                if not isinstance(n_instances_s4air, np.ndarray):
+                    n_instances_s4air = np.array(n_instances_s4air)
 
+                finite_values = n_instances_s4air[n_instances_s4air != np.inf]
+                
+                if finite_values.size > 0:
+                    max_value = max(finite_values)
+                    if n_instances_s4air[i] == np.inf and n_instances_agent[i] == max_value:
+                        difference.append(0)
+                    else:
+                        difference.append(n_instances_s4air[i] - n_instances_agent[i])
+                else:
+                    print("SPACE4AIR: All values in n_instances_s4air are infinite.")
+                    difference.append(np.nan)
+            else:
+                print('SPACE4AIR: n_instances_s4air is not a list or array. It is:', n_instances_s4air)
+                difference.append(np.nan)
+
+        fig, ax1 = plt.subplots(figsize=(10, 10), num="Agent vs Space4Air")
+
+        line_agent, = ax1.plot(n_instances_agent, label="Agent", color="blue")
+        line_s4air, = ax1.plot(n_instances_s4air, label="Space4Air", color="orange")
+        ax1.set_xlabel("Time (ms)")
+        ax1.set_ylabel("Number of VMs")
+        ax1.set_ylim(0, max_n_instances+1)
+
+        ax2 = ax1.twinx()
+        line_workload, = ax2.plot(workload, label="Workload", color="red", linestyle="--")
+        ax2.set_ylabel("Workload (units)")  # Adjust units as needed
+
+        lines = [line_agent, line_s4air, line_workload]
+        labels = [line.get_label() for line in lines]
+        ax1.legend(lines, labels, loc="upper left")
+
+        plt.title("Agent vs Space4Air")
+        plt.savefig(
+            f"{folder_path}/space4air_comparison_last.png",
+            format="png",
+            bbox_inches="tight"
+        )
+        plt.close()
+                
         plt.figure('Difference between the number of instances', figsize=(10,10))
         plt.plot(difference)
         plt.ylabel('Space4Air - Agent (#VMs)')
         plt.xlabel('Time (ms)')
         plt.title(f'Agent vs Space4Air')
         plt.savefig(
-            f"{folder_path}/{experiment_name}/plots/{eval_folder}/space4air_comparison_difference_last.png",
+            f"{folder_path}/space4air_comparison_difference_last.png",
             format = "png",
             bbox_inches = "tight"
         )
         plt.close()
-        eval += 1
-
-    plt.figure('Average difference between FIGARO and SPACE4AI-R', figsize=(10, 10))
-    plt.plot(diff_ave)
-    plt.ylabel('Average difference between FIGARO and SPACE4AI-R')
-    plt.xlabel('Evaluations')
-    plt.title(f'Average absolute difference')
-    plt.savefig(
-        f"{folder_path}/{experiment_name}/plots/AverageDiff.png",
-        format="png",
-        bbox_inches="tight"
-    )
-    plt.close()
-    print('SPACE4AIR - agent plot saved')
-
-
-    # # print("Plotting the comparison between the agent and space4air")
-    # # print(f"total number of instances: {len(n_instances_agent)}")
-    # # print(f"total number of instances from space4air: {len(vm_numbers_s4aid)}")
-    # # print(f"total number of thresholds: {len(thresholds_to_plot)}")
-    # # print(f"total number of workloads: {len(workloads)}")
-
-    # #plot the comparison in the same plot
-    # plt.figure('Agent vs Space4Air')
-    # plt.plot(range(len(n_instances_agent)), n_instances_agent, label="Agent")
-    # plt.plot(range(len(vm_numbers_s4aid)), vm_numbers_s4aid, label="Space4Air")
-    # plt.ylabel('Number of VMs')
-    # plt.xlabel('Time')
-    # plt.legend(loc="upper left")
-    # if not evaluation:
-    #     plt.title(f'Agent vs Space4Air - Iterations {start_iteration} to {end_iteration}')
-    #     plt.savefig(
-    #         f"{plot_folder}/{start_iteration}_{end_iteration}_space4air_comparison.png",
-    #         format = "png",
-    #         bbox_inches = "tight"
-    #     )
-    # else:
-    #     plt.title(f'Agent vs Space4Air - Evaluation #{evaluation_iteration}')
-    #     plt.savefig(
-    #         f"{plot_folder}/{evaluation_iteration}_space4air_comparison.png",
-    #         format = "png",
-    #         bbox_inches = "tight"
-    #     )
-
-    # plt.show()
-    # plt.close()
-
-    # # plot the comparison between the agent and space4air, meaning the difference between the number of instances
-    # # plot the difference between the number of instances
-    # difference = []
-    # for i in range(len(n_instances_agent)):
-    #     if vm_numbers_s4aid[i] is None:
-    #         difference.append(None)
-    #     else:
-    #         difference.append(n_instances_agent[i] - vm_numbers_s4aid[i])
-
-    # plt.figure('Difference between the number of instances')
-    # plt.plot(range(len(difference)), difference)
-    # plt.ylabel('Difference')
-    # plt.xlabel('Time')
-    # if not evaluation:
-    #     plt.title(f'Agent vs Space4Air - Iterations {start_iteration} to {end_iteration}')
-    #     plt.savefig(
-    #         f"{plot_folder}/{start_iteration}_{end_iteration}_space4air_comparison_difference.png",
-    #         format = "png",
-    #         bbox_inches = "tight"
-    #     )
-    # else:
-    #     plt.title(f'Agent vs Space4Air - Evaluation #{evaluation_iteration}')
-    #     plt.savefig(
-    #         f"{plot_folder}/{evaluation_iteration}_space4air_comparison_difference.png",
-    #         format = "png",
-    #         bbox_inches = "tight"
-    #     )
-        
-    # plt.show()
-    # plt.close()

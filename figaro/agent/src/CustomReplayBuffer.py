@@ -1,14 +1,9 @@
 import copy
 import pickle
-from src.space4air import get_precision as get_space4air_precision
-import os
-import json
-import numpy as np
-import re
-from ray.rllib.policy.sample_batch import MultiAgentBatch, SampleBatch
 from ray.rllib.utils.replay_buffers.replay_buffer import ReplayBuffer
 
-OUTPUT_FOLDER = "/home/damommio/figaro-on-rl4cc/output_nas/figaro-on-rl4cc/outputs/"
+OUTPUT_FOLDER = "/home/cavadini/figaro-on-rl4cc/output_nas/figaro-on-rl4cc/outputs/"
+# OUTPUT_FOLDER = "/home/cavadini/figaro-on-rl4cc/output_nas/figaro-on-rl4cc/experiments/output/"
 class CustomReplayBuffer(ReplayBuffer):
     def add(self, data):
         # Check the condition based on the state information

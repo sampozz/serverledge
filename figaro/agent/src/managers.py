@@ -19,15 +19,19 @@ class ResponseTimeManager:
         n_components = len(self.demand)
         # set seed for random number generation
         np.random.seed(seed)
+        self.config = config
         # threshold
-        self.min_threshold_ratio = config["min_threshold_ratio"]
-        self.max_threshold_ratio = config["max_threshold_ratio"]
-        self.threshold_ratio = [
-            np.random.uniform(
-                self.min_threshold_ratio,
-                self.max_threshold_ratio
-            ) for _ in range(n_components)
-        ]
+        if config.get("threshold_ratio", None) is None:
+            self.min_threshold_ratio = config["min_threshold_ratio"]
+            self.max_threshold_ratio = config["max_threshold_ratio"]
+            self.threshold_ratio = np.array([
+                np.random.uniform(
+                    self.min_threshold_ratio,
+                    self.max_threshold_ratio
+                ) for _ in range(n_components)
+            ])
+        else:
+            self.threshold_ratio = np.array(config["threshold_ratio"])
         self.generate_response_time_thresholds()
         # maximum response time
         self.tol = 1e-2
@@ -53,11 +57,15 @@ class ResponseTimeManager:
         Update the threshold values for the given components
         """
         
-        for i in components:
-            self.threshold_ratio[i] = np.random.uniform(
-                self.min_threshold_ratio,
-                self.max_threshold_ratio
-            )
+        #TODO: discuss whether this should be managed differently
+        if self.config.get("threshold_ratio", None) is None:
+            for i in components:
+                self.threshold_ratio[i] = np.random.uniform(
+                    self.min_threshold_ratio,
+                    self.max_threshold_ratio
+                )
+        else:
+            self.threshold_ratio = self.config["threshold_ratio"]
         self.generate_response_time_thresholds()
 
     def generate_response_time_thresholds(self):
@@ -100,9 +108,6 @@ class ResponseTimeManager:
         ---
         u = \frac{\sum_{i \in \mathcal{I}}\lambda_i * D_i}{n}
         """
-        #print('workload:', workload)
-        #print('demand:', self.demand)
-        #print('components:', components)
         if n_instances > 0:
             wd = np.array([workload[i] * self.demand[i] for i in components])
             return min(np.sum(wd) / n_instances, 1.0)
@@ -185,7 +190,7 @@ class ResponseTimeManager:
         ---
         pressure_i = \frac{R_{i}}{\bar{R}_{i}} \forall i
         """
-        max_thr = self.min_threshold_ratio * self.demand.min()
+        max_thr = self.threshold_ratio.min() * self.demand.min()
         return self.max_finite_time / max_thr
 
     def get_min_delay(self) -> float:
@@ -354,265 +359,6 @@ class ResponseTimeManager:
         # queue length
         return (dominant_time - self.demand[dominant_id]) / self.demand[dominant_id]
 
-# class WorkloadManager:
-#     """
-#     Implementation of the workload manager to manage the workload of the different computational node
-#     """
-#     def __init__(self, config: dict, seed: int):
-#         """
-#         Class constructor
-#         """
-#         # define boundaries
-#         self.min_workload = config["min_workload"]
-#         self.max_workload = config["max_workload"]
-#         self.smratiomin = config["smratiomin"]
-#         self.smratiomax = config["smratiomax"]
-#         self.alphamin = config["alphamin"]
-#         self.alphamax = config["alphamax"]
-#         # define curve type number of peaks
-#         self.possible_curves = ["gaussian", "bimodal"]
-#         self.curve_type = config["curve_type"]
-#         if self.curve_type not in self.possible_curves:
-#             raise ValueError(f"Unsupported curve type {self.curve_type}")
-#         self.n_peaks = 1 if self.curve_type == "gaussian" else config["n_peaks"]
-#         # define time interval
-#         self.min_time = config["min_time"]
-#         self.max_time = config["max_time"]
-#         # set seed
-#         self.seed = seed
-#         np.random.seed(seed)
-#         # define profile generators
-#         self.build_profile_generator()
-#         self.workload_profile = None
-#         # generate evaluation workload (if required)
-#         self.use_evaluation_workload = config.get("is_evaluation", False)
-#         if self.use_evaluation_workload:
-#             filename = os.path.join(
-#                 config.get("logdir", "."),
-#                 f"evaluation_workload_{self.min_workload}_{self.max_workload}_{self.seed}.json"
-#             )
-#             self.generate_evaluation_workload(
-#                 filename, config["time_step"], self.seed
-#             )
-#         else:
-#             self.evaluation_workload_profile = None
-#             self.evaluation_time_step = None
-#             self.evaluation_workload_file = None
-
-#     def build_profile_generator(self):
-#         """
-#         Build generator according to the specified parameters
-#         """
-#         self.workload_profile_generator = None
-#         # define configuration parameters
-#         config = {
-#             "vmin": self.min_workload,
-#             "vmax": self.max_workload,
-#             "tmin": self.min_time,
-#             "tmax": self.max_time,
-#             "smratiomin": self.smratiomin,
-#             "smratiomax": self.smratiomax,
-#             "alphamin": self.alphamin,
-#             "alphamax": self.alphamax,
-#             "min_workload": self.min_workload,
-#             "max_workload": self.max_workload,
-#             "seed": self.seed
-#         }
-#         # define generator
-#         if self.curve_type == "gaussian":
-#             self.workload_profile_generator = BimodalFun({
-#                 **config,
-#                 "peaks": np.array([
-#                     int(np.random.uniform(self.min_time, self.max_time)),
-#                     self.max_time * 2
-#                 ])
-#             })
-#         elif self.curve_type == "bimodal":
-#             if self.n_peaks == 2:
-#                 self.workload_profile_generator = BimodalFun({
-#                     **config,
-#                     "peaks": np.array([])
-#                 })
-#             else:
-#                 self.workload_profile_generator = BimodalEnsemble(
-#                     config,
-#                     int(self.n_peaks / 2)
-#                 )
-
-#     def get_initial_workload(self) -> float:
-#         """
-#         Return the initial workload value
-#         """
-#         w = 0.0
-#         if self.use_evaluation_workload:
-#             if self.evaluation_workload_profile is None:
-#                 if self.evaluation_workload_file and self.evaluation_time_step:
-#                     self.generate_evaluation_workload(
-#                         self.evaluation_workload_file, self.evaluation_time_step, 4850
-#                     )
-#                 else:
-#                     raise ValueError("evaluation workload should be manually generated")
-#             w = self.evaluation_workload_profile[0]
-#         else:
-#             if self.workload_profile is None:
-#                 self.generate_workload_profile()
-#             w = self.add_noise(self.workload_profile_generator.eval(self.min_time))
-#         return w
-
-#     def get_workload(self, t) -> float:
-#         """
-#         Return the workload value at a given time t
-#         """
-#         w = 0.0
-#         if self.use_evaluation_workload:
-#             if self.evaluation_workload_profile is None:
-#                 raise ValueError("The evaluation workload profile is None")
-#             idx = 0
-#             while t > self.min_time + idx * self.evaluation_time_step:
-#                 idx += 1
-#             w = self.evaluation_workload_profile[idx]
-#         else:
-#             if self.workload_profile is None:
-#                 raise ValueError("The workload profile is None")
-#             w = min(
-#                 self.max_workload,
-#                 self.add_noise(self.workload_profile_generator.eval(t))
-#             )
-#         return w
-
-#     def generate_workload_profile(self):
-#         """
-#         Generate workload profile
-#         """
-#         # generate profile
-#         self.workload_profile = self.workload_profile_generator.generate_curve()
-
-#     def generate_evaluation_workload(
-#             self, filename: str, time_step: int = None, seed: int = None
-#     ) -> np.array:
-#         """
-#         Generate evaluation workload
-#         """
-#         self.evaluation_workload_file = filename
-#         self.evaluation_time_step = time_step
-#         self.evaluation_workload_profile = None
-#         # if the workload file already exists, read from there
-#         if os.path.exists(filename):
-#             with open(filename, "r") as istream:
-#                 self.evaluation_workload_profile = np.array(
-#                     json.load(istream)["evaluation_workload"]
-#                 )
-#         else:
-#             # otherwise, check that the time step and seed parameters are provided
-#             if time_step is None or seed is None:
-#                 raise ValueError("To generate the workload, provide time_step & seed")
-#             self.workload_profile_generator.set_seed(seed)
-#             np.random.seed(seed)
-#             # generate profile
-#             _ = self.workload_profile_generator.generate_curve()
-#             # evaluate workload
-#             time = np.arange(self.min_time, self.max_time + time_step, time_step)
-#             self.evaluation_workload_profile = self.add_noise(
-#                 self.workload_profile_generator.eval(time)
-#             )
-#             # write workload to file
-#             with open(filename, "w") as ostream:
-#                 ws = json.dumps(
-#                     {"evaluation_workload": list(self.evaluation_workload_profile)},
-#                     indent=2
-#                 )
-#                 ostream.write(ws)
-#         return self.evaluation_workload_profile
-
-#     def plot_workload_profile(self, workload: np.array = None):
-#         """
-#         Plot workload profile
-#         """
-#         tt = None
-#         if workload is None:
-#             npoints = (self.max_time - self.min_time) * 10
-#             tt = np.linspace(self.min_time, self.max_time, npoints)
-#             workload = self.workload_profile_generator.eval(tt)
-#         else:
-#             npoints = len(workload)
-#             tt = np.linspace(self.min_time, self.max_time, npoints)
-#         plt.plot(
-#             tt, workload, linewidth=2
-#         )
-#         plt.xlabel("time [s]", fontsize=14)
-#         plt.ylabel("workload [req/s]", fontsize=14)
-#         plt.show()
-
-#     def add_noise(self, workload: np.array) -> np.array:
-#         """
-#         Add random noise
-#         """
-#         adjusted_workload = None
-#         if isinstance(workload, np.ndarray):
-#             adjusted_workload = np.array([
-#                 np.random.uniform(*self.get_boundaries(w)) * w for w in workload
-#             ])
-#         else:
-#             bmin, bmax = self.get_boundaries(workload)
-#             adjusted_workload = np.random.uniform(bmin, bmax) * workload
-#         return adjusted_workload
-
-#     def get_boundaries(self, w: float) -> Tuple[float, float]:
-#         bmin = 0.9
-#         bmax = 1.1
-#         if w * bmin < self.min_workload:
-#             bmin = 1.0
-#         if w * bmax > self.max_workload:
-#             bmax = 1.0
-#         return bmin, bmax
-
-#     @staticmethod
-#     def get_components_workload(
-#             input_workload: float, transition_probabilities: np.array
-#     ) -> np.array:
-#         """
-#         Compute the workload of all components, given the input value and the
-#         matrix of transition probabilities
-#         """
-#         n_components = len(transition_probabilities)
-#         workload = np.zeros(n_components)
-#         # get the index of the first component
-#         first_component = np.where(~transition_probabilities.any(axis=0))[0]
-#         if len(first_component) != 1:
-#             raise RuntimeError("Zero or multiple components with no predecessors.")
-#         first_component = first_component[0]
-#         # the workload of the first component is the input workload
-#         workload[first_component] = input_workload
-#         # loop over all the others
-#         examined_predecessors = np.zeros(n_components)
-#         n_examined_predecessors = 0
-#         i = first_component
-#         while n_examined_predecessors < n_components:
-#             # identify successors
-#             successors = np.nonzero(transition_probabilities[i,])[0]
-#             # loop over successors and update workload
-#             next_predecessor = None
-#             for j in successors:
-#                 workload[j] += transition_probabilities[i, j] * workload[i]
-#                 # identify next component to examine
-#                 if next_predecessor is None and examined_predecessors[j] == 0:
-#                     next_predecessor = j
-#             # add current component to the set of examined predecessors
-#             examined_predecessors[i] = 1
-#             n_examined_predecessors += 1
-#             # if the last-examined component has no successors, check if there
-#             # are not-yet-visited components
-#             if next_predecessor is None and n_examined_predecessors < n_components:
-#                 k = 0
-#                 while next_predecessor is None:
-#                     if examined_predecessors[k] == 0:
-#                         next_predecessor = k
-#                     k += 1
-#             # move to next predecessor
-#             i = next_predecessor
-#         return workload
-
-
 class SimpleWorkloadManager:
     """
     Implementation of the workload manager to manage the workload of the different computational node
@@ -640,10 +386,14 @@ class SimpleWorkloadManager:
         # generate evaluation workload (if required)
         self.use_evaluation_workload = config.get("is_evaluation", False)
         if self.use_evaluation_workload:
-            filename = os.path.join(
-                config.get("logdir", "."),
-                f"evaluation_workload_{self.min_workload}_{self.max_workload}_{self.seed}.json"
-            )
+            logdir = config.get("logdir", ".")
+            if logdir == ".":
+                filename = os.path.join(
+                    config.get("logdir", "."),
+                    f"evaluation_workload_{self.min_workload}_{self.max_workload}_{self.seed}.json"
+                )
+            else:
+                filename = f"evaluation_workload_{self.min_workload}_{self.max_workload}_{self.seed}.json"
             self.generate_evaluation_workload(
                 filename, config["time_step"], self.seed
             )
@@ -703,6 +453,7 @@ class SimpleWorkloadManager:
             idx = 0
             while t > self.min_time + idx * self.evaluation_time_step:
                 idx += 1
+            
             w = self.evaluation_workload_profile[idx]
         else:
             if self.workload_profile is None:
@@ -742,7 +493,18 @@ class SimpleWorkloadManager:
             _ = self.workload_profile_generator.generate_curve()
             # evaluate workload
             time = np.arange(self.min_time, self.max_time + time_step, time_step)
-            self.evaluation_workload_profile = self.workload_profile_generator.eval_with_noise(time)
+            value = np.zeros(len(time))
+            for t in time:
+                noise = np.random.normal(-0.1*self.max_workload, 0.1*self.max_workload)
+                value[int((t - self.min_time) / time_step)] = self.workload_profile_generator.eval(t) + noise
+
+            if isinstance(value, np.ndarray):
+                value[value < self.min_workload] = self.min_workload
+                value[value > self.max_workload] = self.max_workload
+            else:
+                raise ValueError("Value should be a numpy array")
+            
+            self.evaluation_workload_profile = value
             # write workload to file
             with open(filename, "w") as ostream:
                 ws = json.dumps(
@@ -806,5 +568,5 @@ class SimpleWorkloadManager:
                             k += 1
                     # move to next predecessor
                     i = next_predecessor'''
-    
+
         return workload

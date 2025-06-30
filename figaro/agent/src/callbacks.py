@@ -21,8 +21,9 @@ class CustomCallbacks(BaseCallbacksForPlots):
         super().__init__(*args, **kwargs)
         self.RELEVANT_KEYS = [
             "current_time",
-            # "n_instances",
+            "n_instances",
 			"workload",
+			"previous_workload",
 			"utilization",
 			"pressure",
 			"queue_length_dominant",
@@ -35,16 +36,13 @@ class CustomCallbacks(BaseCallbacksForPlots):
             "total_violations",
             "action",
             "n_instances_difference",
-            "workloads"
+            "space4air_vm_choice",
+            "current_configuration_index"
         ]
-        # self.RELEVANT_KEYS = [
-        #     'obs',
-        #     'new_obs',
-        #     'action',
-        #     'reward',
-        # ]
 
         self.current_iteration = 0
+
+        self.rewards = []
 
     def on_evaluate_start(
             self,
@@ -63,6 +61,41 @@ class CustomCallbacks(BaseCallbacksForPlots):
         algorithm.evaluation_workers.foreach_worker(
             make_update_env_fn()
         )
+
+    def on_evaluate_end(self, *, algorithm: Algorithm, evaluation_metrics: Dict, **kwargs) -> None:
+        #set average difference to true only if the amount of elements with a difference greater than 1 is less than 10% of the total amount of elements
+        average_difference_valid = 0
+        validity_threshold = 0.95
+        overall_difference_threshold = 1.0
+        len_all_differences = 0
+        len_valid_differences = 0
+        overall_n_instances_difference = []
+        for configuration in range(len(evaluation_metrics["evaluation"]["custom_metrics"]["n_instances_difference"])):
+            if (evaluation_metrics["evaluation"]["custom_metrics"]["n_instances_difference"][configuration] != []):
+                len_all_differences += len(evaluation_metrics["evaluation"]["custom_metrics"]["n_instances_difference"][configuration])
+                len_valid_differences += len([x for x in evaluation_metrics["evaluation"]["custom_metrics"]["n_instances_difference"][configuration] if abs(x) <= 1])
+                overall_n_instances_difference.extend(evaluation_metrics["evaluation"]["custom_metrics"]["n_instances_difference"][configuration])
+
+        overall_difference_mean = round(np.mean(np.abs(overall_n_instances_difference)), 1)
+        if len_valid_differences / len_all_differences > validity_threshold and overall_difference_mean < overall_difference_threshold:
+            average_difference_valid = 1
+        else:
+            average_difference_valid = 0
+            
+        with open(f"{algorithm.logdir}/exp_progress.json", "r") as f:
+            exp_progress = json.load(f)
+        if not "custom_metrics" in exp_progress.keys():
+            exp_progress["custom_metrics"] = {}
+            exp_progress["custom_metrics"]["average_vm_difference"] = []
+        else:
+            if not "average_vm_difference" in exp_progress["custom_metrics"].keys():
+                exp_progress["custom_metrics"]["average_vm_difference"] = []
+        exp_progress["custom_metrics"]["average_vm_difference"].append(average_difference_valid)
+        if len(exp_progress["custom_metrics"]["average_vm_difference"]) > 5:
+            exp_progress["custom_metrics"]["average_vm_difference"].pop(0)
+        os.makedirs(f"{algorithm.logdir}/custom_metrics", exist_ok=True)
+        with open(f"{algorithm.logdir}/exp_progress.json", "w") as f:
+            json.dump(exp_progress, f, indent=4)
 
     def on_episode_created(self, *, worker, **kwargs):
 
@@ -108,14 +141,7 @@ class CustomCallbacks(BaseCallbacksForPlots):
             else :
                 os.makedirs(batches_path)
             if id_last < 1000:
-                # final_dict = {}
-                # keys_to_loop = postprocessed_batch.policy_batches['default_policy'].keys()
-                # for key in keys_to_loop:
-                #     value_to_save = postprocessed_batch.policy_batches['default_policy'][key].tolist()
-                #     final_dict[key] = value_to_save
-                # save_object(final_dict, f'{batches_path}/sample_batch_{id_last + 1}.pkl')
                 save_object(postprocessed_batch, f'{batches_path}/sample_batch_{id_last + 1}.pkl')
-                print(f'New sample batch saved in {batches_path}/sample_batch_{id_last + 1}.pkl')
 
 
 
@@ -130,41 +156,68 @@ class CustomCallbacks(BaseCallbacksForPlots):
             **kwargs,
     ):
         super().on_episode_step(base_env=base_env,worker=worker, policies=policies, episode=episode, env_index=env_index)
-        # worker.env.set_training_iteration_index(policies["default_policy"].num_grad_updates)
-        # print("num_grad_updates: "+str(policies["default_policy"].num_grad_updates))
+        min_duration = 360
+        if worker.env.worker_type != "evaluation":
+            last_violation = episode.last_info_for()["violation"]
+            current_folder = worker.env.current_folder
+            with open(f"{current_folder}/exp_progress.json", "r") as f:
+                exp_progress = json.load(f)
+            if not "custom_metrics" in exp_progress.keys():
+                exp_progress["custom_metrics"] = {}
+                exp_progress["custom_metrics"]["last_violations"] = []
+            exp_progress["custom_metrics"]["last_violations"].append(last_violation)
+            if len(exp_progress["custom_metrics"]["last_violations"]) > min_duration:
+                exp_progress["custom_metrics"]["last_violations"].pop(0)
+                percentage_of_violations = len([x for x in exp_progress["custom_metrics"]["last_violations"] if x == True]) / min_duration
+            else:
+                percentage_of_violations = 100
+            if percentage_of_violations <= 0.1:
+                exp_progress["custom_metrics"]["valid_violations"] = True
+            else:
+                exp_progress["custom_metrics"]["valid_violations"] = False
+            os.makedirs(f"{current_folder}/custom_metrics", exist_ok=True)
+            with open(f"{current_folder}/exp_progress.json", "w") as f:
+                json.dump(exp_progress, f, indent=4)
+                
         worker.env.set_training_iteration_index(self.current_iteration)
         self.current_iteration += 1
-
+        
+        ### ONLY FOR TUNING ###
+        
+        # if "reward" in episode.last_info_for():
+        #     self.rewards.append(episode.last_info_for()["reward"])
+        #     with open(f"/home/cavadini/figaro-on-rl4cc/tuning-rewards.json", "w") as f:
+        #         json.dump(self.rewards, f)
 
     def on_train_result(self, *, algorithm, result: Dict, **kwargs):
         super().on_train_result(algorithm=algorithm, result=result, **kwargs)
+        ### ONLY FOR TUNING ###
+        # if os.path.exists(f"/home/cavadini/figaro-on-rl4cc/tuning-rewards.json"):
+        #     with open(f"/home/cavadini/figaro-on-rl4cc/tuning-rewards.json", "r") as f:
+        #         rewards = json.load(f)
+        #         result["reward"] = rewards[-1]
+        # else:
+        #     print("rewards file not found")
 
+
+        custom_metrics_found = False
         if (
         "env_runners" in result.keys() and 
             "custom_metrics" in result["env_runners"].keys()
         ):
             custom_metrics = result["env_runners"]["custom_metrics"]
+            custom_metrics_found = True
         elif (
             "custom_metrics" in result.keys() and 
             len(result["custom_metrics"].keys()) > 0
         ):
             custom_metrics = result["custom_metrics"]
+            custom_metrics_found = True
         else:
             result["callback_ok"] = False
-            return
-        
-        average_difference = round(sum(custom_metrics["n_instances_difference"][0]) / len(custom_metrics["n_instances_difference"][0]), 1)
-        print(f"saving average_difference: {average_difference}")
-        with open(f"{algorithm.logdir}/exp_progress.json", "r") as f:
-            exp_progress = json.load(f)
-        if not "custom_metrics" in exp_progress.keys():
-            exp_progress["custom_metrics"] = {}
-            exp_progress["custom_metrics"]["average_vm_difference"] = []
-        if len(exp_progress["custom_metrics"]["average_vm_difference"]) > 5:
-            exp_progress["custom_metrics"]["average_vm_difference"].pop(0)
-        exp_progress["custom_metrics"]["average_vm_difference"].append(average_difference)
-        with open(f"{algorithm.logdir}/exp_progress.json", "w") as f:
-            json.dump(exp_progress, f)
+
+
+        return
 
 def save_object(obj, filename):
     with open(filename, 'wb') as outp:  # Overwrites any existing file.

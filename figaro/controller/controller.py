@@ -6,7 +6,7 @@ SERVERLEDGE_HOST = 'http://serverledge'
 PROMETHEUS_HOST = 'http://prometheus'
 AGENT_HOST = 'http://figaro-agent'
 SERVERLEDGE_PORT = 1323
-AGENT_PORT = 5100
+AGENT_PORT = 5000
 PROMETHEUS_PORT = 9090
 PROMETHEUS_METRICS = ['sedge_workload', 'sedge_response_time', 'sedge_service_time']
 
@@ -213,7 +213,7 @@ class RLAgent:
         # self.log.write('timestamp,function,workload,pressure,queue_length_dominant,utilization,ram_utilization,response_time,service_time,theoretical_utilization,n_instances\n')
         
         self.avg_log = open(f'logs/avg_log-{function}-{timestamp}.csv', 'w')
-        self.avg_log.write('timestamp,function,workload,pressure,queue_length_dominant,utilization,theoretical_utilization,response_time,service_time\n')
+        self.avg_log.write('timestamp,function,workload,pressure,queue_length_dominant,utilization,theoretical_utilization,response_time,service_time,n_instances\n')
         
         
     def update_data(self, metrics, docker_stats, n_instances):
@@ -329,17 +329,16 @@ class RLAgent:
             'utilization': self.cumulative_data['utilization'] / self.iteration,
             'theoretical_utilization': self.cumulative_data['theoretical_utilization'] / self.iteration,
             'response_time': self.cumulative_data['response_time'] / self.iteration,
-            'service_time': self.cumulative_data['service_time'] / self.iteration
+            'service_time': self.cumulative_data['service_time'] / self.iteration,
+            'n_instances': self.n_instances
         }
         
-        self.avg_log.write(f"{time.time()},{self.function},{avg_data['workload']},{avg_data['pressure']},{avg_data['queue_length_dominant']},{avg_data['utilization']},{avg_data['theoretical_utilization']},{avg_data['response_time']},{avg_data['service_time']}\n")
+        self.avg_log.write(f"{time.time()},{self.function},{avg_data['workload']},{avg_data['pressure']},{avg_data['queue_length_dominant']},{avg_data['utilization']},{avg_data['theoretical_utilization']},{avg_data['response_time']},{avg_data['service_time']},{avg_data['n_instances']}\n")
         self.avg_log.flush()
         
         self.cumulative_data = {}
         self.iteration = 0
-        
-        return 1
-        
+                
         try:
             response = post(f'{self.agent_url}/action', json={'observation': avg_data})
             if response.status_code == 200:

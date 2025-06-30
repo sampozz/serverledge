@@ -219,16 +219,20 @@ class SimpleBimodal(SimpleDistribution):
 
         mean1 = np.random.uniform(peaks[0][0] * time_interval, peaks[0][1] * time_interval)
         mean2 = np.random.uniform(peaks[1][0] * time_interval, peaks[1][1] * time_interval)
-        ratio1 = np.random.uniform(min_smratio, max_smratio)
-        ratio2 = np.random.uniform(min_smratio, max_smratio)
+        min_ratio = np.random.uniform(min_smratio, (max_smratio-min_smratio)/2)
+        max_ratio = np.random.uniform((max_smratio-min_smratio)/2, max_smratio)
         #pick a random number between 0 and 1
         highest_peak = np.random.choice([0, 1])
         if highest_peak == 0:
             weight1 = np.random.uniform(min_height[0]*max_workload, max_height[0]*max_workload)
             weight2 = np.random.uniform(min_height[1]*max_workload, max_height[1]*max_workload)
+            ratio1 = max_ratio
+            ratio2 = min_ratio
         else:
             weight1 = np.random.uniform(min_height[1]*max_workload, max_height[1]*max_workload)
             weight2 = np.random.uniform(min_height[0]*max_workload, max_height[0]*max_workload)
+            ratio1 = min_ratio
+            ratio2 = max_ratio
 
         self._curve = lambda t: np.clip(
             (weight1 * np.exp(-((t - mean1) ** 2) / (2 * (mean1 * ratio1) ** 2))) +

@@ -43,15 +43,26 @@ services:
     restart: no
 
   # FIGARO services
+  figaro-agent-base:
+    build:
+      context: figaro/agent
+      dockerfile: src/production_agents/DQN/Dockerfile.base
+    image: rl4cc-base:latest
+    container_name: figaro-agent-base
+    command: ["echo", "Base image built successfully"]
+    restart: "no"
+
   figaro-agent:
     build:
-      context: .
-      dockerfile: figaro/agent/src/production_agents/DQN/Dockerfile
+      context: figaro/agent
+      dockerfile: src/production_agents/DQN/Dockerfile
     image: figaro-production_agent:latest
     container_name: figaro-agent
     ports:
-      - "5100:5000"
+      - "5000:5000"
     restart: unless-stopped
+    depends_on:
+      - figaro-agent-base
 
   figaro-controller:
     build:
