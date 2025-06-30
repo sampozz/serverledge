@@ -31,6 +31,7 @@ func StartAPIServer(e *echo.Echo) {
 	e.GET("/poll/:reqId", PollAsyncResult)
 	e.GET("/status", GetServerStatus)
 	e.POST("/prewarm", PrewarmFunction)
+	e.POST("/scaledown", ScaleDownFunction)
 	// Workflow routes
 	e.POST("/workflow/invoke/:workflow", InvokeWorkflow)
 	e.POST("/workflow/create", CreateWorkflowFromASL)

@@ -259,3 +259,28 @@ func PrewarmFunction(c echo.Context) error {
 	response := struct{ Prewarmed int64 }{count}
 	return c.JSON(http.StatusOK, response)
 }
+
+// ScaleDownFunction handles a scale down request.
+func ScaleDownFunction(c echo.Context) error {
+	var req client.ScaleDownRequest
+	err := json.NewDecoder(c.Request().Body).Decode(&req)
+	if err != nil && err != io.EOF {
+		log.Printf("Could not parse request: %v\n", err)
+		return err
+	}
+
+	fun, ok := function.GetFunction(req.Function)
+	if !ok {
+		log.Printf("Dropping request for unknown fun '%s'\n", req.Function)
+		return c.String(http.StatusNotFound, "Function unknown")
+	}
+
+	count, err := node.ScaleDownInstances(fun, req.Instances)
+
+	if err != nil && !errors.Is(err, node.OutOfResourcesErr) {
+		log.Printf("Failed scale down: %v\n", err)
+		return c.JSON(http.StatusServiceUnavailable, "")
+	}
+	response := struct{ ScaledDown int64 }{count}
+	return c.JSON(http.StatusOK, response)
+}

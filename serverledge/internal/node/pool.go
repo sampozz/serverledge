@@ -460,3 +460,37 @@ func PrewarmInstances(f *function.Function, count int64, forcePull bool) (int64,
 
 	return spawned, nil
 }
+
+// ScaleDownFunction scales down a function to the specified number of instances.
+func ScaleDownInstances(f *function.Function, instances int64) (int64, error) {
+	Resources.Lock()
+	defer Resources.Unlock()
+
+	fp, ok := Resources.ContainerPools[f.Name]
+	if !ok {
+		return 0, fmt.Errorf("function %s not found", f.Name)
+	}
+
+	if instances < 0 || instances > int64(fp.ready.Len())+int64(fp.busy.Len()) {
+		return 0, fmt.Errorf("invalid number of instances: %d", instances)
+	}
+
+	// Scale down the ready pool
+	for fp.ready.Len() > int(instances) {
+		elem := fp.ready.Front()
+		if elem == nil {
+			break
+		}
+		warmed := elem.Value.(warmContainer)
+		fp.ready.Remove(elem)
+
+		memory, _ := container.GetMemoryMB(warmed.contID)
+		releaseResources(0, memory)
+		err := container.Destroy(warmed.contID)
+		if err != nil {
+			log.Printf("Error while destroying container %s: %s\n", warmed.contID, err)
+		}
+	}
+
+	return int64(fp.ready.Len()) + int64(fp.busy.Len()), nil
+}

@@ -72,6 +72,31 @@ class Serverledge:
         except Exception as e:
             printf(f"Exception occurred: {e}")
         return False
+    
+    
+    def scale_down(self, function_name, n_instances=1):
+        """Scales down a specific function to the specified number of instances.
+        
+        Args:
+            function_name (str): The name of the function to scale down.
+            n_instances (int): The number of instances to scale down to.
+            
+        Returns:
+            bool: True if scaling down was successful, False otherwise.
+        """
+        try:
+            response = post(
+                f'{self.serverledge_url}/scaledown',
+                json={"Function": function_name, "Instances": n_instances}
+            )
+            if response.status_code == 200:
+                printf(f"Scaling down {function_name} to {n_instances} instances")
+                return True
+            else:
+                printf(f"Error: Received status code {response.status_code}")
+        except Exception as e:
+            printf(f"Exception occurred: {e}")
+        return False
         
         
     def list(self):
@@ -156,6 +181,7 @@ class Serverledge:
         """
         containers = self.docker.containers.list(filters={"ancestor": function_name})
         cpu_utilization, ram_utilization = 0, 0
+        return {'cpu': 0, 'ram': 0}
 
         for container in containers:
             try:
@@ -398,6 +424,9 @@ if __name__ == "__main__":
                 if prewarm_containers > 0:
                     serverledge.prewarm(fun, prewarm_containers)
                     printf(f"Updated number of instances for {fun}: {action}")
+                elif prewarm_containers < 0:
+                    serverledge.scale_down(fun, action)
+                    printf(f"Scaled down {fun} to {action} instances")
             
             iterations += 1
             time.sleep(METRICS_INTERVAL)

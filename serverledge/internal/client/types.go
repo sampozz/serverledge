@@ -20,6 +20,12 @@ type PrewarmingRequest struct {
 	ForceImagePull bool
 }
 
+// ScaleDownRequest is a request to scale down a function
+type ScaleDownRequest struct {
+	Function  string // Name of the function to scale down
+	Instances int64  // Number of instances to scale down to
+}
+
 // WorkflowInvocationRequest is an external invocation of a workflow (from API or CLI)
 type WorkflowInvocationRequest struct {
 	Params          map[string]interface{}
