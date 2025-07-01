@@ -1,6 +1,7 @@
 import time
 from requests import *
 import docker
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 SERVERLEDGE_HOST = 'http://serverledge'
 PROMETHEUS_HOST = 'http://prometheus'
@@ -180,46 +181,62 @@ class Serverledge:
             dict: A dictionary containing CPU and RAM utilization percentages.
         """
         containers = self.docker.containers.list(filters={"ancestor": function_name})
-        cpu_utilization, ram_utilization = 0, 0
-        return {'cpu': 0, 'ram': 0}
-
-        for container in containers:
+        if not containers:
+            return {'cpu': 0, 'ram': 0}
+        
+        def get_container_stats(container):
+            """Helper function to get stats for a single container."""
             try:
                 stats = container.stats(stream=False)
+                
+                # Extract CPU stats
+                cpu_delta = float(stats["cpu_stats"]["cpu_usage"]["total_usage"]) - \
+                            float(stats["precpu_stats"]["cpu_usage"]["total_usage"])
+                system_delta = float(stats["cpu_stats"]["system_cpu_usage"]) - \
+                            float(stats["precpu_stats"]["system_cpu_usage"])
+                
+                # Get number of CPU cores
+                online_cpus = stats["cpu_stats"].get("online_cpus", len(stats["cpu_stats"]["cpu_usage"].get("percpu_usage", [1])))
+                
+                # Calculate percentage (0-100)
+                if system_delta > 0:
+                    cpu_percent = (cpu_delta / system_delta) * online_cpus * 100.0
+                else:
+                    cpu_percent = 0.0
+                
+                # Extract memory stats
+                memory_usage = stats["memory_stats"]["usage"]
+                memory_limit = stats["memory_stats"]["limit"]
+                
+                if memory_limit > 0:
+                    ram_percent = (memory_usage / memory_limit) * 100.0
+                else:
+                    ram_percent = 0.0
+                
+                return {'cpu': cpu_percent, 'ram': ram_percent}
+                
             except Exception as e:
                 printf(f"Error fetching stats for container {container.name}: {e}")
-                continue
+                return {'cpu': 0, 'ram': 0}
+        
+        cpu_utilization, ram_utilization = 0, 0
+        
+        # Use ThreadPoolExecutor to fetch stats in parallel
+        with ThreadPoolExecutor(max_workers=min(len(containers), 10)) as executor:
+            future_to_container = {executor.submit(get_container_stats, container): container 
+                                 for container in containers}
             
-            # Extract CPU stats
-            cpu_delta = float(stats["cpu_stats"]["cpu_usage"]["total_usage"]) - \
-                        float(stats["precpu_stats"]["cpu_usage"]["total_usage"])
-            system_delta = float(stats["cpu_stats"]["system_cpu_usage"]) - \
-                        float(stats["precpu_stats"]["system_cpu_usage"])
+            for future in as_completed(future_to_container):
+                container = future_to_container[future]
+                try:
+                    result = future.result()
+                    cpu_utilization += result['cpu']
+                    ram_utilization += result['ram']
+                except Exception as e:
+                    printf(f"Error processing stats for container {container.name}: {e}")
             
-            # Get number of CPU cores
-            online_cpus = stats["cpu_stats"].get("online_cpus", len(stats["cpu_stats"]["cpu_usage"].get("percpu_usage", [1])))
-            
-            # Calculate percentage (0-100)
-            if system_delta > 0:
-                cpu_percent = (cpu_delta / system_delta) * online_cpus * 100.0
-            else:
-                cpu_percent = 0.0
-                
-            cpu_utilization += cpu_percent    
-            
-            # Extract memory stats
-            memory_usage = stats["memory_stats"]["usage"]
-            memory_limit = stats["memory_stats"]["limit"]
-            
-            if memory_limit > 0:
-                ram_percent = (memory_usage / memory_limit) * 100.0
-            else:
-                ram_percent = 0.0
-                
-            ram_utilization += ram_percent
-            
-        cpu_res = (cpu_utilization / len(containers) if containers else 0) / 100
-        ram_res = (ram_utilization / len(containers) if containers else 0) / 100
+        cpu_res = (cpu_utilization / len(containers)) / 100
+        ram_res = (ram_utilization / len(containers)) / 100
         return {'cpu': cpu_res, 'ram': ram_res}
 
 
@@ -392,6 +409,8 @@ if __name__ == "__main__":
     try:
         iterations = 0
         while True:
+            loop_start_time = time.time()
+            
             # Discover new functions and update agents
             new_functions = serverledge.list()
             if new_functions:
@@ -429,7 +448,8 @@ if __name__ == "__main__":
                     printf(f"Scaled down {fun} to {action} instances")
             
             iterations += 1
-            time.sleep(METRICS_INTERVAL)
+            sleep_time = max(0, METRICS_INTERVAL - (time.time() - loop_start_time))
+            time.sleep(sleep_time)
             
     except KeyboardInterrupt:
         printf("Stopping the agent...")
