@@ -32,6 +32,7 @@ class ProductionAgentDQN:
 
         if "replay_buffer_state" in algo_state:
             try:
+                print("Restoring replay buffer state...")
                 replay_buffer = self.algo.local_replay_buffer
                 old_state = algo_state["replay_buffer_state"]
                 if replay_buffer is not None:

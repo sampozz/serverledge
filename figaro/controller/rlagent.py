@@ -1,6 +1,10 @@
 import time
 from requests import post
 
+RESPONSE_TIME_THRESHOLD = 45.0 
+VIOLATION_CHECKS_COUNT = 5 * 12
+VIOLATIONS_THRESHOLD = 0.2
+
 
 def printf(*args, **kwargs):
     """Print with flush to ensure immediate output from docker container."""
@@ -14,7 +18,9 @@ class RLAgent:
         self.function = function
         self.agent_url = f'{agent_host}:{agent_port}'
         self.cumulative_data = {}
-        self.iteration = 0
+        self.cumulative_count = 0
+        self.violations = 0
+        self.violation_checks = 0
         self.avg_response_time = 0.0
         self.n_instances = 1
         
@@ -39,7 +45,7 @@ class RLAgent:
         response_time = metrics.get('sedge_response_time', 0.0)
         service_time = metrics.get('sedge_service_time', 0.0)
         workload = metrics.get('sedge_workload', 0.0)
-        utilization = docker_stats.get('cpu', 0.0)
+        utilization = min(docker_stats.get('cpu', 0.0), 1.0)
         ram_utilization = docker_stats.get('ram', 0.0)
         
         self.update_avg_response_time(response_time)
@@ -60,7 +66,8 @@ class RLAgent:
             'service_time': service_time + self.cumulative_data.get('service_time', 0),
         }
         
-        self.iteration += 1
+        self.violations += 1 if self.check_violation(response_time) else 0
+        self.cumulative_count += 1
         
 
     def update_avg_response_time(self, response_time):        
@@ -71,7 +78,7 @@ class RLAgent:
         Returns:
             float: The updated average response time.
         """
-        self.avg_response_time = (self.avg_response_time * self.iteration + response_time) / (self.iteration + 1) 
+        self.avg_response_time = (self.avg_response_time * self.cumulative_count + response_time) / (self.cumulative_count + 1) 
         return self.avg_response_time
     
     
@@ -85,7 +92,7 @@ class RLAgent:
         Returns:
             float: The computed utilization.
         """
-        return workload * service_time / self.n_instances if self.n_instances > 0 else 0
+        return min(workload * service_time / self.n_instances if self.n_instances > 0 else 0.0, 1.0)
     
     
     def compute_queue_length(self, response_time, service_time):
@@ -110,7 +117,7 @@ class RLAgent:
         Returns:
             float: The computed pressure.
         """
-        return response_time / self.avg_response_time if self.avg_response_time > 0 else 0
+        return response_time / RESPONSE_TIME_THRESHOLD if RESPONSE_TIME_THRESHOLD > 0 else 0
         
     
     def action(self):
@@ -128,18 +135,18 @@ class RLAgent:
             printf("Error: No data available to send to the RL agent.")
             return self.n_instances
         
-        if self.iteration == 0:
+        if self.cumulative_count == 0:
             printf("Error: No iterations completed yet. Cannot compute average data.")
             return self.n_instances
         
         avg_data = {
-            'workload': self.cumulative_data['workload'] / self.iteration,
-            'pressure': self.cumulative_data['pressure'] / self.iteration,
-            'queue_length_dominant': self.cumulative_data['queue_length_dominant'] / self.iteration,
-            'utilization': self.cumulative_data['utilization'] / self.iteration,
-            'theoretical_utilization': self.cumulative_data['theoretical_utilization'] / self.iteration,
-            'response_time': self.cumulative_data['response_time'] / self.iteration,
-            'service_time': self.cumulative_data['service_time'] / self.iteration,
+            'workload': self.cumulative_data['workload'] / self.cumulative_count,
+            'pressure': self.cumulative_data['pressure'] / self.cumulative_count,
+            'queue_length_dominant': self.cumulative_data['queue_length_dominant'] / self.cumulative_count,
+            'utilization': self.cumulative_data['utilization'] / self.cumulative_count,
+            'theoretical_utilization': self.cumulative_data['theoretical_utilization'] / self.cumulative_count,
+            'response_time': self.cumulative_data['response_time'] / self.cumulative_count,
+            'service_time': self.cumulative_data['service_time'] / self.cumulative_count,
             'n_instances': self.n_instances
         }
         
@@ -147,10 +154,24 @@ class RLAgent:
         self.avg_log.flush()
         
         self.cumulative_data = {}
-        self.iteration = 0
+        self.cumulative_count = 0
+        
+        # Normalize the state before sending it to the RL agent
+        obs = self.normalize_state(avg_data)
+        
+        if self.violation_checks > VIOLATION_CHECKS_COUNT and \
+            self.violations / self.violation_checks > VIOLATIONS_THRESHOLD:
+            printf(f"High violation rate detected: {self.violations / self.violation_checks:.2%}. Calling learn method.")
+            self.violations = 0
+            self.violation_checks = 0
+            return self.send_learn_request(obs)
+        else:
+            return self.send_action_request(obs)
                 
+                
+    def send_action_request(self, obs):
         try:
-            response = post(f'{self.agent_url}/action', json={'observation': avg_data})
+            response = post(f'{self.agent_url}/action', json={'observation': obs})
             if response.status_code == 200:
                 action = response.json().get('action')
                 if action is not None:
@@ -165,3 +186,66 @@ class RLAgent:
         except Exception as e:
             printf(f"Exception occurred: {e}")
             return self.n_instances
+
+
+    def normalize_state(self, state):
+        """normalize the state
+
+        Args:
+            state (dict): the state
+
+        Returns:
+            dict: the normalized state
+        """
+        
+        min_workload = 0
+        max_workload = 0.3
+        max_n_instances = 10
+        min_pressure = 0
+        pressure_clip_value = 3
+        min_queue_length = 0
+        queue_length_dominant_clip_value = 10
+
+        # for each state element compute value_norm = (original_value - min )/ (max - min)
+        # if min = 0; value_norm = original_value / max
+        # then it value is rounded to x decimals to have  discrete values value per state feature, x is determined form the define_decimals function
+        workload = (state["workload"] - min_workload) / (max_workload - min_workload)
+        
+        if "n_instances" in state:
+            n_instances = (state["n_instances"])/(max_n_instances) # TO CHECK: was state["n_instances"]-1 - why?
+        
+        if "pressure" in state:
+                clipped_pressure = max(min_pressure, min(state["pressure"], pressure_clip_value))
+                pressure = (clipped_pressure - min_pressure) / (pressure_clip_value - min_pressure)
+                
+        if "queue_length_dominant" in state:
+                clipped_queue_length_dominant = max(min_queue_length, min(state["queue_length_dominant"], queue_length_dominant_clip_value))
+                queue_length_dominant = (clipped_queue_length_dominant - min_queue_length) / (queue_length_dominant_clip_value - min_queue_length)
+
+        normalized_state = {
+            "n_instances": n_instances,
+            "utilization": state["utilization"],
+            "pressure": pressure,
+            "queue_length_dominant": queue_length_dominant,
+            "workload": workload
+        }
+
+        return normalized_state
+    
+    
+    def check_violation(self, response_time):
+        """Check if the response time exceeds the threshold.
+        
+        Args:
+            response_time (float): The response time to check.
+            
+        Returns:
+            bool: True if the response time exceeds the threshold, False otherwise.
+        """
+        threshold = RESPONSE_TIME_THRESHOLD
+        self.violation_checks += 1
+        return response_time > threshold + 0.1 * threshold
+    
+    
+    def send_learn_request(self):
+        pass
