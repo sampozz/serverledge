@@ -1,8 +1,6 @@
 <!-- GETTING STARTED -->
 ## Getting Started
 
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-
 ### Prerequisites
 
 Required software and tools to run the project.
@@ -29,30 +27,34 @@ After installation, you can interact with serverledge via docker compose.
 
 Some convienent scripts are provided in the `examples/videosearcher` directory to create and manage workflows.
 
-### Example Commands
+### Deepspeech workflow
 
-The following script creates the functions required by videosearcher on serverledge, and a workflow containing these functions:
+The following Python script creates a workflow with a single function deepspeech, starting from the systemfile. 
 
 ```sh
-./examples/videosearcher/create_videosearcher.sh
+cd figaro/systemfiles
+python3 parser.py deepspeech.json
 ```
 
 Then create the input files in the `/mnt/ramdisk` directory:
 
 ```sh
 # Video file to process
-cp examples/video_cut.mp4 /mnt/ramdisk/video.mp4 
+cp examples/videosearcher/video_cut.mp4 /mnt/ramdisk/video.mp4 
 # Text file with the string to search in the video
 echo "depression" > /mnt/ramdisk/params.txt
+# Create the intermediate input files for deepspeech
+mkdir -p /mnt/ramdisk/example
+cp examples/videosearcher/video_ffmpeg_2_output_?.tar.gz /mnt/ramdisk/example/
 ```
 
 Finally, run the workflow:
 
 ```sh
-docker compose exec -it serverledge bin/serverledge-cli invoke-workflow -f videosearcher_0 -p "dir:example"
+docker compose exec -it serverledge bin/serverledge-cli invoke-workflow -f deepspeech_workflow -p "dir:example"
 ```
 
-The intermediate results will be stored in the `/mnt/ramdisk/example` directory, and the final result will be returned in the terminal.
+The results will be stored in the `/mnt/ramdisk/example` directory.
 
 ## Load Testing with Locust
 

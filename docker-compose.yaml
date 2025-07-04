@@ -81,27 +81,27 @@ services:
 
   # Videosearcher function images (these are built but not run as services)
   # These are run by serverledge on demand
-  ffmpeg_0:
+  ffmpeg0:
     build:
       context: .
-      dockerfile: figaro/videosearcher/ffmpeg_0/Dockerfile
-    image: ffmpeg_0:latest
+      dockerfile: figaro/videosearcher/ffmpeg0/Dockerfile
+    image: ffmpeg0:latest
     profiles:
       - build-only  # This profile prevents the service from starting by default
 
-  ffmpeg_1:
+  ffmpeg1:
     build:
       context: .
-      dockerfile: figaro/videosearcher/ffmpeg_1/Dockerfile
-    image: ffmpeg_1:latest
+      dockerfile: figaro/videosearcher/ffmpeg1/Dockerfile
+    image: ffmpeg1:latest
     profiles:
       - build-only
 
-  ffmpeg_2:
+  ffmpeg2:
     build:
       context: .
-      dockerfile: figaro/videosearcher/ffmpeg_2/Dockerfile
-    image: ffmpeg_2:latest
+      dockerfile: figaro/videosearcher/ffmpeg2/Dockerfile
+    image: ffmpeg2:latest
     profiles:
       - build-only
 

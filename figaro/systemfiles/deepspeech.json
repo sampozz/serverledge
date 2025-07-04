@@ -1,0 +1,71 @@
+{
+    "CloudResources": {
+        "computationalLayer3": {
+            "VM2": {
+                "description": "",
+                "number": 10,
+                "cost": 1,
+                "memory": 1024,
+                "n_cores": 1
+            }
+        }
+    },
+    "Components": {
+        "deepspeech": {
+            "s1": {
+                "h1": {
+                    "next": [],
+                    "early_exit_probability": 0,
+                    "data_size": [],
+                    "memory": 1
+                }
+            }
+        }
+    },
+    "NetworkTechnology": {
+        "ND1": {
+            "computationalLayers": [
+                "computationalLayer3"
+            ],
+            "AccessDelay": 2.77e-6,
+            "Bandwidth": 4000
+        }
+    },
+    "CompatibilityMatrix": {
+        "deepspeech": {
+            "h1": [
+                {
+                    "resource": "VM2",
+                    "memory": 64
+                }
+            ]
+        }
+    },
+    "LocalConstraints": {
+        "deepspeech": {
+            "local_res_time": 45
+        }
+    },
+    "GlobalConstraints": {},
+    "DirectedAcyclicGraph": {
+        "deepspeech": {
+            "next": [],
+            "transition_probability": [
+                1
+            ]
+        }
+    },
+    "Performance": {
+        "deepspeech": {
+            "h1": {
+                "VM2": {
+                    "model": "QTcloud",
+                    "demand": 20,
+                    "meanTime": 20
+                }
+            }
+        }
+    },
+    "Lambda": 1,
+    "Time": 1
+}

@@ -1,0 +1,11 @@
+{
+    "Comment": "Auto-generated System File: deepspeech.json",
+    "StartAt": "deepspeech",
+    "States": {
+        "deepspeech": {
+            "Type": "Task",
+            "Resource": "deepspeech",
+            "End": true
+        }
+    }
+}

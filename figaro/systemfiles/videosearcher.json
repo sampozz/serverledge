@@ -1,0 +1,434 @@
+{
+    "EdgeResources": {
+        "computationalLayer1": {
+            "RasPi": {
+                "description": "Raspberry PIs 4 Model B",
+                "number": 6,
+                "cost": 0.6,
+                "memory": 4096,
+                "n_cores": 4
+            }
+        },
+        "computationalLayer2": {
+            "VM1": {
+                "description": "Inhouse VM Type 1 UPV",
+                "number": 8,
+                "cost": 0.675,
+                "memory": 8192,
+                "n_cores": 4
+            }
+        }
+    },
+    "CloudResources": {
+        "computationalLayer3": {
+            "VM2": {
+                "description": "",
+                "number": 12,
+                "cost": 0.2,
+                "memory": 16384,
+                "n_cores": 4
+            }
+        },
+        "computationalLayer4": {
+            "VM3": {
+                "description": "",
+                "number": 6,
+                "cost": 0.4,
+                "memory": 32768,
+                "n_cores": 8
+            }
+        },
+        "computationalLayer5": {
+            "VM4": {
+                "description": "",
+                "number": 12,
+                "cost": 0.192,
+                "memory": 16384,
+                "n_cores": 4
+            }
+        }
+    },
+    "Components": {
+        "ffmpeg0": {
+            "s1": {
+                "h1": {
+                    "next": [
+                        "librosa"
+                    ],
+                    "early_exit_probability": 0,
+                    "data_size": [
+                        180.0
+                    ],
+                    "memory": 1
+                }
+            }
+        },
+        "librosa": {
+            "s1": {
+                "h1": {
+                    "next": [
+                        "ffmpeg1"
+                    ],
+                    "early_exit_probability": 0,
+                    "data_size": [
+                        116.4
+                    ],
+                    "memory": 1
+                }
+            }
+        },
+        "ffmpeg1": {
+            "s1": {
+                "h1": {
+                    "next": [
+                        "ffmpeg2"
+                    ],
+                    "early_exit_probability": 0,
+                    "data_size": [
+                        135.6
+                    ],
+                    "memory": 1
+                }
+            }
+        },
+        "ffmpeg2": {
+            "s1": {
+                "h1": {
+                    "next": [
+                        "deepspeech"
+                    ],
+                    "early_exit_probability": 0,
+                    "data_size": [
+                        93.6
+                    ],
+                    "memory": 1
+                }
+            }
+        },
+        "deepspeech": {
+            "s1": {
+                "h1": {
+                    "next": [
+                        "ffmpeg3"
+                    ],
+                    "early_exit_probability": 0,
+                    "data_size": [
+                        75.6
+                    ],
+                    "memory": 1
+                }
+            }
+        },
+        "ffmpeg3": {
+            "s1": {
+                "h1": {
+                    "next": [
+                        "yolo"
+                    ],
+                    "early_exit_probability": 0,
+                    "data_size": [
+                        16.8
+                    ],
+                    "memory": 1
+                }
+            }
+        },
+        "yolo": {
+            "s1": {
+                "h1": {
+                    "next": [],
+                    "early_exit_probability": 0,
+                    "data_size": [
+                        16.6
+                    ],
+                    "memory": 1
+                }
+            }
+        }
+    },
+    "NetworkTechnology": {
+        "ND1": {
+            "computationalLayers": [
+                "computationalLayer1",
+                "computationalLayer2",
+                "computationalLayer3",
+                "computationalLayer4",
+                "computationalLayer5"
+            ],
+            "AccessDelay": 2.77e-6,
+            "Bandwidth": 4000
+        }
+    },
+    "CompatibilityMatrix": {
+        "ffmpeg0": {
+            "h1": [
+                {
+                    "resource": "RasPi",
+                    "memory": 768
+                }
+            ]
+        },
+        "librosa": {
+            "h1": [
+                {
+                    "resource": "VM1",
+                    "memory": 1024
+                }
+            ]
+        },
+        "ffmpeg1": {
+            "h1": [
+                {
+                    "resource": "VM2",
+                    "memory": 1024
+                }
+            ]
+        },
+        "ffmpeg2": {
+            "h1": [
+                {
+                    "resource": "VM2",
+                    "memory": 1024
+                },
+                {
+                    "resource": "VM3",
+                    "memory": 1024
+                },
+                {
+                    "resource": "VM4",
+                    "memory": 1024
+                }
+            ]
+        },
+        "deepspeech": {
+            "h1": [
+                {
+                    "resource": "VM2",
+                    "memory": 1024
+                },
+                {
+                    "resource": "VM3",
+                    "memory": 1024
+                },
+                {
+                    "resource": "VM4",
+                    "memory": 1024
+                }
+            ]
+        },
+        "ffmpeg3": {
+            "h1": [
+                {
+                    "resource": "VM2",
+                    "memory": 1024
+                },
+                {
+                    "resource": "VM3",
+                    "memory": 1024
+                },
+                {
+                    "resource": "VM4",
+                    "memory": 1024
+                }
+            ]
+        },
+        "yolo": {
+            "h1": [
+                {
+                    "resource": "VM2",
+                    "memory": 1024
+                },
+                {
+                    "resource": "VM3",
+                    "memory": 1024
+                },
+                {
+                    "resource": "VM4",
+                    "memory": 1024
+                }
+            ]
+        }
+    },
+    "LocalConstraints": {
+        "librosa": {
+            "local_res_time": 80
+        },
+        "ffmpeg1": {
+            "local_res_time": 30
+        },
+        "deepspeech": {
+            "local_res_time": 65
+        }
+    },
+    "GlobalConstraints": {
+        "global_constraint_1": {
+            "components": [
+                "ffmpeg0",
+                "librosa",
+                "ffmpeg1",
+                "ffmpeg2",
+                "deepspeech",
+                "ffmpeg3",
+                "yolo"
+            ],
+            "global_res_time": 250
+        }
+    },
+    "DirectedAcyclicGraph": {
+        "ffmpeg0": {
+            "next": [
+                "librosa"
+            ],
+            "transition_probability": [
+                1
+            ]
+        },
+        "librosa": {
+            "next": [
+                "ffmpeg1"
+            ],
+            "transition_probability": [
+                1
+            ]
+        },
+        "ffmpeg1": {
+            "next": [
+                "ffmpeg2"
+            ],
+            "transition_probability": [
+                1
+            ]
+        },
+        "ffmpeg2": {
+            "next": [
+                "deepspeech"
+            ],
+            "transition_probability": [
+                1
+            ]
+        },
+        "deepspeech": {
+            "next": [
+                "ffmpeg3"
+            ],
+            "transition_probability": [
+                1
+            ]
+        },
+        "ffmpeg3": {
+            "next": [
+                "yolo"
+            ],
+            "transition_probability": [
+                1
+            ]
+        }
+    },
+    "Performance": {
+        "ffmpeg0": {
+            "h1": {
+                "RasPi": {
+                    "model": "QTedge",
+                    "demand": 26.54,
+                    "meanTime": 26.54
+                }
+            }
+        },
+        "librosa": {
+            "h1": {
+                "VM1": {
+                    "model": "QTcloud",
+                    "demand": 20.2,
+                    "meanTime": 20.2
+                }
+            }
+        },
+        "ffmpeg1": {
+            "h1": {
+                "VM2": {
+                    "model": "QTcloud",
+                    "demand": 3.38,
+                    "meanTime": 3.38
+                }
+            }
+        },
+        "ffmpeg2": {
+            "h1": {
+                "VM2": {
+                    "model": "QTcloud",
+                    "demand": 43.28,
+                    "meanTime": 43.28
+                },
+                "VM3": {
+                    "model": "QTcloud",
+                    "demand": 25,
+                    "meanTime": 25
+                },
+                "VM4": {
+                    "model": "QTcloud",
+                    "demand": 43.28,
+                    "meanTime": 43.28
+                }
+            }
+        },
+        "deepspeech": {
+            "h1": {
+                "VM2": {
+                    "model": "QTcloud",
+                    "demand": 16.66,
+                    "meanTime": 16.66
+                },
+                "VM3": {
+                    "model": "QTcloud",
+                    "demand": 10,
+                    "meanTime": 10
+                },
+                "VM4": {
+                    "model": "QTcloud",
+                    "demand": 16.66,
+                    "meanTime": 16.66
+                }
+            }
+        },
+        "ffmpeg3": {
+            "h1": {
+                "VM2": {
+                    "model": "QTcloud",
+                    "demand": 3.58,
+                    "meanTime": 3.58
+                },
+                "VM3": {
+                    "model": "QTcloud",
+                    "demand": 2,
+                    "meanTime": 2
+                },
+                "VM4": {
+                    "model": "QTcloud",
+                    "demand": 3.58,
+                    "meanTime": 3.58
+                }
+            }
+        },
+        "yolo": {
+            "h1": {
+                "VM2": {
+                    "model": "QTcloud",
+                    "demand": 5.02,
+                    "meanTime": 5.02
+                },
+                "VM3": {
+                    "model": "QTcloud",
+                    "demand": 2.5,
+                    "meanTime": 2.5
+                },
+                "VM4": {
+                    "model": "QTcloud",
+                    "demand": 5.02,
+                    "meanTime": 5.02
+                }
+            }
+        }
+    },
+    "Lambda": 0.007,
+    "Time": 1
+}

@@ -1,0 +1,41 @@
+{
+    "Comment": "Auto-generated System File: videosearcher.json",
+    "StartAt": "ffmpeg0",
+    "States": {
+        "ffmpeg0": {
+            "Type": "Task",
+            "Resource": "ffmpeg0",
+            "Next": "librosa"
+        },
+        "librosa": {
+            "Type": "Task",
+            "Resource": "librosa",
+            "Next": "ffmpeg1"
+        },
+        "ffmpeg1": {
+            "Type": "Task",
+            "Resource": "ffmpeg1",
+            "Next": "ffmpeg2"
+        },
+        "ffmpeg2": {
+            "Type": "Task",
+            "Resource": "ffmpeg2",
+            "Next": "deepspeech"
+        },
+        "deepspeech": {
+            "Type": "Task",
+            "Resource": "deepspeech",
+            "Next": "ffmpeg3"
+        },
+        "ffmpeg3": {
+            "Type": "Task",
+            "Resource": "ffmpeg3",
+            "Next": "yolo"
+        },
+        "yolo": {
+            "Type": "Task",
+            "Resource": "yolo",
+            "End": true
+        }
+    }
+}
