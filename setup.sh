@@ -61,6 +61,7 @@ fi
 log "Building all Docker images and starting services..."
 
 # Build all images including the videosearcher function images
+docker compose build figaro-agent-base
 docker compose --profile build-only build
 
 # Start the main services (etcd, prometheus, figaro-agent, figaro-controller)

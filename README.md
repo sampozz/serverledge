@@ -17,6 +17,7 @@ Follow these steps to set up the project:
    ```
 2. Run the setup script
    ```sh
+   cd serverledge
    chmod +x setup.sh
    ./setup.sh
    ```
@@ -39,6 +40,7 @@ python3 parser.py deepspeech.json
 Then create the input files in the `/mnt/ramdisk` directory:
 
 ```sh
+cd ../../
 # Video file to process
 cp examples/videosearcher/video_cut.mp4 /mnt/ramdisk/video.mp4 
 # Text file with the string to search in the video

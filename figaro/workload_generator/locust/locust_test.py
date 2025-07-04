@@ -11,7 +11,7 @@ from datetime import datetime
 # === Constants ===
 HOST            = "127.0.0.1"       # Serverledge host
 PORT            = 1323              # Serverledge port
-WORKFLOW_NAME   = "deepspeech_0"    # Name of the workflow to invoke
+WORKFLOW_NAME   = "deepspeech_workflow"    # Name of the workflow to invoke
 
 # === Configuration for the sinusoidal workload ===
 SECONDS     = 60 * 60  # Total duration of the test in seconds
