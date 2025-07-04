@@ -18,9 +18,9 @@ from RL4CC.algorithms.algorithm import Algorithm
 from RL4CC.utilities.common import not_defined
 from RL4CC.utilities.logger import Logger
 
-from ray.rllib.policy.policy import Policy
 from datetime import datetime
-
+import os
+import json
 
 class TrainingExperiment(BaseExperiment):
   def __init__(
@@ -30,7 +30,7 @@ class TrainingExperiment(BaseExperiment):
       logger: Logger = Logger(name = "RL4CC")
     ):
     super().__init__(exp_config_file, exp_config, logger)
-  
+
   def validate_experiment_configuration(self):
     super().validate_experiment_configuration()
     # check that stopping criteria are provided
@@ -38,11 +38,12 @@ class TrainingExperiment(BaseExperiment):
       raise KeyError(
         "`stopping_criteria` must be provided in `exp_config.json`"
       )
-  
-  def run(self) -> Policy:
+
+  def run(self):
     # define algorithm
+    self.env_config["logdir"] = self.logdir
     algo = Algorithm(
-      algo_name = self.exp_config["algorithm"], 
+      algo_name = self.exp_config["algorithm"],
       checkpoint_path = self.checkpoint_path,
       env_config = self.env_config,
       ray_config = self.ray_config,
@@ -53,15 +54,19 @@ class TrainingExperiment(BaseExperiment):
     # build (if the algorithm is not loaded from an existing checkpoint)
     if self.checkpoint_path is None:
       algo.build()
-    # save logdir
-    self.logdir = algo.logdir
-    # save experiment configuration files
+
+    if "load_policy_weights" in self.exp_config and self.exp_config["load_policy_weights"]:
+      self.logger.log("Loading policy weights", 1)
+      algo = self.load_policy_weights(algo)
+
     self.write_config_files()
     algo.print_algo_config()
-    # training loop
+    self.logdir = algo.logdir
+  
     self.execute_before_training(algo)
     self.training_loop(algo)
     self.execute_after_training(algo)
+    
     return algo
 
   def execute_before_training(self, algo: Algorithm):
@@ -71,7 +76,23 @@ class TrainingExperiment(BaseExperiment):
     pass
 
   def on_iteration_end(self, algo: Algorithm, it: int):
-    pass
+    with open(f"{algo.logdir}/exp_progress.json", "r") as f:
+      exp_progress = json.load(f)
+      if not "custom_metrics" in exp_progress.keys():
+        s4air_differences = []
+        valid_violations = False
+      else:
+        if not "average_vm_difference" in exp_progress["custom_metrics"].keys():
+          s4air_differences = []
+        else:
+          s4air_differences = exp_progress["custom_metrics"]["average_vm_difference"]
+          
+        if not "valid_violations" in exp_progress["custom_metrics"].keys():
+          valid_violations = False
+        else:
+          valid_violations = exp_progress["custom_metrics"]["valid_violations"]
+          
+    return s4air_differences, valid_violations
 
   def training_loop(self, algo: Algorithm):
     """
@@ -81,43 +102,63 @@ class TrainingExperiment(BaseExperiment):
     self.logger.log(f"training loop --> START", 1)
     self.update_progress_file("experiment_start_timestamp", start.timestamp())
     it = 1
-    while not self.stop(it):
+    episode_reward_mean = 0
+    s4air_differences = []
+    valid_violations = False
+    epsilon_reset = self.exp_config.get("epsilon_reset", 0)
+    while not self.stop(it, episode_reward_mean, s4air_differences, valid_violations): #TODO: move to custom stopping criteria
       self.on_iteration_start(algo, it)
       # train
       true_it = algo.last_iteration() + 1
       self.logger.log(f"starting iteration {it} ({true_it})", 3)
       result = algo.train()
+      episode_reward_mean = result["episode_reward_mean"]
       self.logger.log("iteration completed", 3)
       self.update_progress_file("last_iteration", algo.last_iteration())
-      # save checkpoint at the beginning and every `checkpoint_frequency` 
+      # save checkpoint at the beginning and every `checkpoint_frequency`
       # iterations
       if it == 1 or it % self.checkpoint_config["checkpoint_frequency"] == 0:
         last_chpt_dir = algo.save_checkpoint()
         self.update_progress_file("last_checkpoint_dir", last_chpt_dir)
-      # save evaluation results every `evaluation_interval` iterations
-      if it % self.evaluation_interval == 0:
-        self.update_evaluation_metrics_file(
-          result["training_iteration"], 
-          result["evaluation"]
-        )
       # plot results at the beginning and every `plot_interval` iterations
       if it == 1 or it % self.plot_interval == 0:
         self.plot_results(result)
-      self.on_iteration_end(algo, it)
-      # move to the next iteration
+      # save evaluation results every `evaluation_interval` iterations
+      if it % self.evaluation_interval == 0:
+        print("Evaluating at iteration", it, flush=True)
+        self.update_evaluation_metrics_file(
+          result["training_iteration"],
+          result["evaluation"]
+        )
+      s4air_differences, valid_violations = self.on_iteration_end(algo, it)
+      
+      if epsilon_reset != 0 and it % epsilon_reset == 0:
+        policy = algo.get_policy()
+
+        policy.exploration.epsilon_schedule.schedule_timesteps = self.ray_config["exploration"]["exploration_config"]["epsilon_schedule"]["schedule_timesteps"]
+        policy.exploration.epsilon_schedule.initial_p = self.ray_config["exploration"]["exploration_config"]["epsilon_schedule"]["initial_p"]
+
+        state = policy.get_state()
+
+        exploration_state = state.get("_exploration_state", {})
+        exploration_state["cur_epsilon"] = self.ray_config["exploration"]["exploration_config"]["epsilon_schedule"]["initial_p"]
+        exploration_state["last_timestep"] = 0
+
+        state["_exploration_state"] = exploration_state
+
+        policy.set_state(state)
+
       it += 1
     # save last checkpoint
     last_chpt_dir = algo.save_checkpoint()
     self.update_progress_file("last_checkpoint_dir", last_chpt_dir)
-    # perform final evaluation (if it has not just be performed)
-    if (it - 1) % self.evaluation_interval != 0:
-      self.logger.log(f"starting final evaluation", 2)
-      self.update_evaluation_metrics_file(
-        result["training_iteration"], algo.evaluate()
-      )
-      self.logger.log(f"final evaluation performed", 2)
-    else:
-      self.logger.log(f"final evaluation already performed during training", 2)
+    # perform final evaluation
+    print("Performing final evaluation", flush=True)
+    self.logger.log(f"starting final evaluation", 2)
+    self.update_evaluation_metrics_file(
+      result["training_iteration"], algo.evaluate()
+    )
+    self.logger.log(f"final evaluation performed", 2)
     # stop
     algo.stop()
     end = datetime.now()
@@ -137,7 +178,8 @@ class TrainingExperiment(BaseExperiment):
 
   def execute_after_training(self, algo: Algorithm):
     pass
-  
+
+
   def define_stopping_criteria(self):
     """
     Define a `stop()` function to check whether the training loop should be 
@@ -154,3 +196,26 @@ class TrainingExperiment(BaseExperiment):
           f"Stopping criterion `{key}` is not supported"
         )
     self.stop = stop_on_max_iter
+
+  def load_policy_weights(self, algo: Algorithm):
+    """
+    Load policy from given checkpoint
+    """
+
+    self.logger.log("Loading policy from checkpoint: {}".format(self.exp_config["load_policy_weights"]), 1)
+                    
+    old_algo = Algorithm(
+      algo_name = self.exp_config["algorithm"],
+      checkpoint_path = self.exp_config["load_policy_weights"],
+      env_config = self.env_config,
+      ray_config = self.ray_config,
+      logdir = self.logdir,
+      eval_interval = self.evaluation_interval,
+      logger = self.logger
+    )
+    old_algo.build()
+
+    policy_weights = old_algo.get_policy().get_weights()
+    algo.get_policy().set_weights(policy_weights)
+
+    return algo
