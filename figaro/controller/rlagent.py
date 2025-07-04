@@ -1,9 +1,6 @@
 import time
 from requests import post
-
-RESPONSE_TIME_THRESHOLD = 45.0 
-VIOLATION_CHECKS_COUNT = 5 * 12
-VIOLATIONS_THRESHOLD = 0.2
+from config import *
 
 
 def printf(*args, **kwargs):
@@ -159,8 +156,9 @@ class RLAgent:
         # Normalize the state before sending it to the RL agent
         obs = self.normalize_state(avg_data)
         
+        violation_rate = self.violations / self.violation_checks if self.violation_checks > 0 else 0
         if self.violation_checks > VIOLATION_CHECKS_COUNT and \
-            self.violations / self.violation_checks > VIOLATIONS_THRESHOLD:
+            violation_rate > VIOLATIONS_THRESHOLD:
             printf(f"High violation rate detected: {self.violations / self.violation_checks:.2%}. Calling learn method.")
             self.violations = 0
             self.violation_checks = 0
@@ -197,14 +195,6 @@ class RLAgent:
         Returns:
             dict: the normalized state
         """
-        
-        min_workload = 0
-        max_workload = 0.3
-        max_n_instances = 10
-        min_pressure = 0
-        pressure_clip_value = 3
-        min_queue_length = 0
-        queue_length_dominant_clip_value = 10
 
         # for each state element compute value_norm = (original_value - min )/ (max - min)
         # if min = 0; value_norm = original_value / max

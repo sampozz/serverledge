@@ -4,18 +4,7 @@ from serverledge import Serverledge
 from rlagent import RLAgent
 import docker
 from datetime import datetime
-
-
-SERVERLEDGE_HOST = 'http://serverledge'
-PROMETHEUS_HOST = 'http://prometheus'
-AGENT_HOST = 'http://figaro-agent'
-SERVERLEDGE_PORT = 1323
-AGENT_PORT = 5000
-PROMETHEUS_PORT = 9090
-PROMETHEUS_METRICS = ['sedge_workload', 'sedge_response_time', 'sedge_service_time']
-
-METRICS_INTERVAL = 5  # Interval in seconds to fetch metrics
-AGENT_INTERVAL = 60  # Interval in seconds to send data to the agent
+from config import *
 
 
 def printf(*args, **kwargs):
@@ -25,10 +14,18 @@ def printf(*args, **kwargs):
 
 
 if __name__ == "__main__":
+    # Initialize Docker client and Serverledge instance
+    # Use the Docker socket to connect to the Docker daemon
+    # This is necessary to manage containers on the host machine from a Docker container
     docker_client = docker.DockerClient(base_url='unix://var/run/docker.sock')
     serverledge = Serverledge(docker_client, SERVERLEDGE_HOST, SERVERLEDGE_PORT,
                                PROMETHEUS_HOST, PROMETHEUS_PORT)    
+    
+    # List of serverledge functions
     functions = []
+    
+    # Dictionary to hold RL agents for each function
+    # Key: function name, Value: RLAgent instance
     agents = {}
     
     try:
@@ -37,6 +34,8 @@ if __name__ == "__main__":
             loop_start_time = time.time()
             
             # Discover new functions and update agents
+            # TODO: each agent should be deployed in a separate container
+            #       so the agent host and port should be different for each agent
             new_functions = serverledge.list()
             if new_functions:
                 for fun in new_functions:
@@ -63,7 +62,7 @@ if __name__ == "__main__":
                 agents[fun].update_data(prometheus_metrics, docker_stats, n_instances)
                 
                 # Call action method of the agent once every AGENT_INTERVAL
-                if iterations % (AGENT_INTERVAL / METRICS_INTERVAL) == 0:
+                if iterations % (AGENT_INTERVAL // METRICS_INTERVAL) == 0:
                     action = agents[fun].action()
                     printf(f"Action for {fun}: {action}")
                 
