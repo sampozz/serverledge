@@ -25,7 +25,7 @@ AGENT_INTERVAL = 60     # Interval in seconds to send data to the RL agent
 
 # Configuration for RL Agent
 
-RESPONSE_TIME_THRESHOLD = 45.0  # Threshold for response time in seconds
+RESPONSE_TIME_THRESHOLD = 1000.0  # Threshold for response time in seconds
                                 # Used to compute the pressure metric
                                 # and to determine if a violation occurs    
 

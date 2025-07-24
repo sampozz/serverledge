@@ -237,5 +237,5 @@ class RLAgent:
         return response_time > threshold + 0.1 * threshold
     
     
-    def send_learn_request(self):
+    def send_learn_request(self, obs):
         pass

@@ -19,8 +19,8 @@ SCALE       = 60    # This is the interval in seconds between one burst of reque
                     # Each burst corresponds to an exponential distribution of requests
 
 BASE_RPS    = 0.0 * SCALE  # Base requests per second in the sinusoidal pattern
-AMPLITUDE   = 0.2 * SCALE  # Amplitude of the sinusoidal pattern
-NOISE_STD   = 0.01 * SCALE  # Standard deviation of the noise added to the sinusoidal pattern
+AMPLITUDE   = 1.0 * SCALE  # Amplitude of the sinusoidal pattern
+NOISE_STD   = 0.1 * SCALE  # Standard deviation of the noise added to the sinusoidal pattern
 
 RPS_POINTS  = int(SECONDS / SCALE)
 

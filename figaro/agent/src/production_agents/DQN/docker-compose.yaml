@@ -1,67 +1,20 @@
 services:
-  performer_triple_layer_S4AID:
-    container_name: performer_triple_layer_S4AID
+  agent_test_agent_server_dqn:
+    container_name: agent_test_agent_server_dqn
     restart: always
-    image: dlthesis/performer-slim:latest
-    ports:
-      - "5007:5000"
+    image: production_agent_new:latest
     networks:
-      - net_triple_layer_S4AID
-    env_file:
-      - path: ./variables.env
-  simulator_triple_layer_S4AID:
-    container_name: simulator_triple_layer_S4AID
-    image: dlthesis/performer-slim:latest
-    restart: always
+      - net_test_agent_server_dqn
     ports:
-      - "5008:5000"
-    networks:
-      - net_triple_layer_S4AID
-    env_file:
-      - path: ./variables.env
-  agent_cl1_triple_layer_S4AID:
-    container_name: agent_cl1_triple_layer_S4AID
-    restart: always
-    image: production_agent:latest
-    ports:
-      - "5009:5000"
-    networks:
-      - net_triple_layer_S4AID
+      - "5000:5000"
     volumes:
-      - ${PWD}/../../../figaro-on-rl4cc/src/production_agents/DQN/agent_server_DQN.py:/app/agent_server.py
-      - ${PWD}/../../../figaro-on-rl4cc/src/production_agents/DQN/production_agent_DQN.py:/app/production_agent_DQN.py
-      - ${PWD}/../../../figaro-on-rl4cc/RL4CC:/app/RL4CC
-      - ${PWD}/../../../figaro-on-rl4cc/src:/app/src
-      - ${PWD}/configuration_files/checkpoints/trained_checkpoint_cl1:/app/trained_checkpoint/
-  agent_cl2_triple_layer_S4AID:
-    container_name: agent_cl2_triple_layer_S4AID
-    restart: always
-    image: production_agent:latest
-    ports:
-      - "5010:5000"
-    networks:
-      - net_triple_layer_S4AID
-    volumes:
-      - ${PWD}/../../../figaro-on-rl4cc/src/production_agents/DQN/agent_server_DQN.py:/app/agent_server.py
-      - ${PWD}/../../../figaro-on-rl4cc/src/production_agents/DQN/production_agent_DQN.py:/app/production_agent_DQN.py
-      - ${PWD}/../../../figaro-on-rl4cc/RL4CC:/app/RL4CC
-      - ${PWD}/../../../figaro-on-rl4cc/src:/app/src
-      - ${PWD}/configuration_files/checkpoints/trained_checkpoint_cl2:/app/trained_checkpoint/
-  agent_cl3_triple_layer_S4AID:
-    container_name: agent_cl3_triple_layer_S4AID
-    restart: always
-    image: production_agent:latest
-    ports:
-      - "5011:5000"
-    networks:
-      - net_triple_layer_S4AID
-    volumes:
-      - ${PWD}/../../../figaro-on-rl4cc/src/production_agents/DQN/agent_server_DQN.py:/app/agent_server.py
-      - ${PWD}/../../../figaro-on-rl4cc/src/production_agents/DQN/production_agent_DQN.py:/app/production_agent_DQN.py
-      - ${PWD}/../../../figaro-on-rl4cc/RL4CC:/app/RL4CC
-      - ${PWD}/../../../figaro-on-rl4cc/src:/app/src
-      - ${PWD}/configuration_files/checkpoints/trained_checkpoint_cl3:/app/trained_checkpoint/
+      - ${PWD}/src/production_agents/DQN/configuration_files/checkpoints/trained_checkpoint:/app/trained_checkpoint/
+      - ${PWD}/src/production_agents/DQN/configuration_files/start/agents_parameters.json:/app/agents_parameters.json
+    environment:
+      - RAY_ADDRESS=ray://host.docker.internal:10001
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
 networks:
-  net_triple_layer_S4AID:
-    name: net_triple_layer_S4AID
-    #external: true
+  net_test_agent_server_dqn:
+    name: net_test_agent_server_dqn

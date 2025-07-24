@@ -9,7 +9,7 @@ COPY ./src/production_agents/DQN/production_agent_DQN.py /app/production_agent_D
 COPY ./RL4CC /app/RL4CC
 COPY ./src /app/src
 COPY ./src/production_agents/DQN/configuration_files/checkpoints/trained_checkpoint/ /app/trained_checkpoint/
-COPY ./src/production_agents/DQN/configuration_files/agents_parameters.json /app/agents_parameters.json
+COPY ./src/production_agents/DQN/configuration_files/start/agents_parameters.json /app/agents_parameters.json
 COPY evaluation_workload_0.0_0.16_4850.json /app/evaluation_workload_0.0_0.16_4850.json
 
 RUN chmod a+w -R /app

@@ -1,0 +1,10 @@
+{
+  "EnableTraining": 0,
+  "TrainingFrequency": 0,
+  "ExplorationConfig": {
+    "InitialEpsilon": 0.1,
+    "DecayInterval": 100,
+    "FinalEpsilon": 0.05
+  },
+  "SaveCheckpointInterval": 360
+}

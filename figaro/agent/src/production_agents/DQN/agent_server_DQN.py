@@ -1,21 +1,21 @@
 import os
 import ray
-from production_agent_DQN import ProductionAgentDQN
-from ray.rllib.models import ModelCatalog
-from ray.rllib.policy.sample_batch import SampleBatch, MultiAgentBatch
-from RL4CC.models.custom_torch_model import CustomTorchModel
-
+import json
 import flask
 import numpy as np
 from flask import request
-import json
+from ray.rllib.models import ModelCatalog
+from production_agent_DQN import ProductionAgentDQN
+from RL4CC.models.custom_torch_model import CustomTorchModel
+from ray.rllib.policy.sample_batch import SampleBatch, MultiAgentBatch
+
 
 # Here we connect to the Ray Cluster on the Host
 # to start the ray cluster, run the following command:
 # ray start --head --dashboard-host 0.0.0.0 --port=6379 --ray-client-server-port=10001
 ray_address = os.getenv("RAY_ADDRESS", "ray://localhost:10001")
 # ray.init(address=ray_address, ignore_reinit_error=True)
-ray.init(local_mode = True)
+ray.init()
 ModelCatalog.register_custom_model("custom_torch_model", CustomTorchModel)
 
 app = flask.Flask(__name__)
@@ -23,10 +23,6 @@ app = flask.Flask(__name__)
 checkpoint_path = "/app/trained_checkpoint"
 parameters_path = "/app/agents_parameters.json"
 
-
-# Load the parameters: 
-# 1) Whether to reset the agent state (Learning rate schedule, exploration schedule) or not
-# 2) Explore when computing the actions or purely exploit
 with open(parameters_path, 'r') as file:
     parameters = json.load(file)
 
@@ -34,16 +30,19 @@ if "rllib_checkpoint.json" in os.listdir(checkpoint_path):
     with open(os.path.join(checkpoint_path, "rllib_checkpoint.json"), 'r') as file:
         content = json.load(file)
         
-reset_state = False #TODO: check if we actually ever need this or we just use the endpoint
-agent = ProductionAgentDQN(checkpoint_path=checkpoint_path, reset_state=reset_state)
+agent = ProductionAgentDQN()
+agent.reload_from_checkpoint(checkpoint_path)
 
 @app.route('/action', methods=['POST'])
 def action():
     # Get the json containing the observation
-    print("Received a request for action.")
+    
     data = json.loads(request.get_data().decode("utf-8"))
+    # obs_list = data['observation']
+    # obs = np.array(obs_list, dtype=np.float32)
     obs = data['observation']
-    exploration = data.get('explore', False)
+    
+    print("Received observation:", obs)
 
     # Prepare the observation in a format suited for the Agent
     obs_for_agent = {
@@ -54,11 +53,9 @@ def action():
         "workload": np.array([obs['workload']])
     }
 
-    # We use the Policy to compute the action given the current state
-    action = agent.compute_single_action(obs_for_agent, explore=exploration)
+    action = agent.take_action(obs_for_agent)
 
-    return json.dumps({"action": int(action) + 1})
-
+    return json.dumps({"action": int(action)+1})
 
 def stack_features(data, keys):
     """Returns np.array of shape (batch_size, num_features)"""
@@ -72,7 +69,6 @@ def learn():
     data = json.loads(request.get_data().decode("utf-8"))
 
     obs_keys = ["n_instances", "pressure", "queue_length_dominant", "utilization", "workload"]
-    batch_size = len(data["observations"])
 
     # Stack each observation set into (batch_size, num_features)
     observations = stack_features(data["observations"], obs_keys)
@@ -98,7 +94,8 @@ def learn():
         env_steps=sample_batch.count,
     )
 
-    update_info = agent.training_step(wrapped_batch)
+    response = agent.training_step(wrapped_batch)
+    print(f"Training step response: {response}")
 
     return json.dumps({"message": "Policy updated with new experiences."})
 
@@ -107,10 +104,12 @@ def set_epsilon():
     try:
         data = json.loads(request.get_data().decode("utf-8"))
         print('Received a request to set epsilon.')
-        epsilon = float(data.get("epsilon", 0.5))
-        schedule_timesteps = int(data.get("schedule_timesteps", 1000))
-        agent.set_epsilon(epsilon, schedule_timesteps)
-        return json.dumps({"message": f"Epsilon set to {epsilon} with schedule_timesteps {schedule_timesteps}"}), 200
+        print(f"Data received: {data}")
+        start = float(data.get("start", 0))
+        end = float(data.get("end", 0))
+        schedule_timesteps = int(data.get("schedule_timesteps", 0))
+        agent.set_epsilon(start=start, end=end, schedule_timesteps=schedule_timesteps)
+        return json.dumps({"message": f"Epsilon set to {start}, decaying to {end} over {schedule_timesteps} timesteps."}), 200
     except Exception as e:
         return json.dumps({"error": str(e)}), 400
     
